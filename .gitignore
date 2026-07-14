@@ -1,0 +1,23 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+
+target/
+node_modules/
+dist/
+coverage/
+.pytest_cache/
+__pycache__/
+*.pyc
+
+# Product and private evaluation data
+data/
+private-evals/
+models/
+
+# Harness output is local evidence, not source.
+artifacts/harness/*
+!artifacts/harness/.gitkeep
+artifacts/evidence/*
+!artifacts/evidence/.gitkeep

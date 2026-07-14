@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "phases": [
+    {
+      "id": "P00",
+      "name": "Feasibility spikes",
+      "spec": "specs/phases/P00-feasibility.md",
+      "depends_on": [],
+      "build_command": ["make", "build"],
+      "evaluate_command": ["make", "test"]
+    },
+    {
+      "id": "P01",
+      "name": "Platform foundation",
+      "spec": "specs/phases/P01-foundation.md",
+      "depends_on": ["P00"],
+      "build_command": ["make", "build"],
+      "evaluate_command": ["make", "test"]
+    },
+    {
+      "id": "P02",
+      "name": "Manual catalog and imports",
+      "spec": "specs/phases/P02-manual-catalog.md",
+      "depends_on": ["P01"],
+      "build_command": ["make", "build"],
+      "evaluate_command": ["make", "test"]
+    },
+    {
+      "id": "P03",
+      "name": "Receipt intelligence",
+      "spec": "specs/phases/P03-receipts.md",
+      "depends_on": ["P02"],
+      "build_command": ["make", "build"],
+      "evaluate_command": ["make", "test"]
+    },
+    {
+      "id": "P04",
+      "name": "Photo analysis",
+      "spec": "specs/phases/P04-photo-analysis.md",
+      "depends_on": ["P02"],
+      "build_command": ["make", "build"],
+      "evaluate_command": ["make", "test"]
+    },
+    {
+      "id": "P05",
+      "name": "Reconciliation",
+      "spec": "specs/phases/P05-reconciliation.md",
+      "depends_on": ["P03", "P04"],
+      "build_command": ["make", "build"],
+      "evaluate_command": ["make", "test"]
+    },
+    {
+      "id": "P06",
+      "name": "Production connectors",
+      "spec": "specs/phases/P06-connectors.md",
+      "depends_on": ["P05"],
+      "build_command": ["make", "build"],
+      "evaluate_command": ["make", "test"]
+    },
+    {
+      "id": "P07",
+      "name": "Outfit assistant",
+      "spec": "specs/phases/P07-outfits.md",
+      "depends_on": ["P05"],
+      "build_command": ["make", "build"],
+      "evaluate_command": ["make", "test"]
+    },
+    {
+      "id": "P08",
+      "name": "Try-on visualization",
+      "spec": "specs/phases/P08-try-on.md",
+      "depends_on": ["P07"],
+      "build_command": ["make", "build"],
+      "evaluate_command": ["make", "test"]
+    },
+    {
+      "id": "P09",
+      "name": "Production hardening",
+      "spec": "specs/phases/P09-hardening.md",
+      "depends_on": ["P06", "P07", "P08"],
+      "build_command": ["make", "build"],
+      "evaluate_command": ["make", "test"]
+    }
+  ]
+}
