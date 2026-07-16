@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Wardrobe",
+  "version": "0.1.0",
+  "identifier": "com.devrai.wardrobe",
+  "build": {
+    "beforeBuildCommand": "python3 tools/release_supply_chain.py check && python3 tools/release_supply_chain.py check-installed && npm --workspace @wardrobe/desktop-ui run build",
+    "beforeDevCommand": "npm --workspace @wardrobe/desktop-ui run dev",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../apps/desktop-ui/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Wardrobe",
+        "width": 980,
+        "height": 680,
+        "minWidth": 640,
+        "minHeight": 480,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "capabilities": ["main"],
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src ipc: http://ipc.localhost; font-src 'self'; object-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app"],
+    "resources": {
+      "../release/generated/supply-chain-manifest-v1.json": "release/supply-chain-manifest-v1.json"
+    },
+    "macOS": {
+      "minimumSystemVersion": "15.0",
+      "signingIdentity": "-"
+    }
+  }
+}

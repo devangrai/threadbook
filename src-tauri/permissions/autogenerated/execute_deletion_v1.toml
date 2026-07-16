@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-execute-deletion-v1"
+description = "Enables the execute_deletion_v1 command without any pre-configured scope."
+commands.allow = ["execute_deletion_v1"]
+
+[[permission]]
+identifier = "deny-execute-deletion-v1"
+description = "Denies the execute_deletion_v1 command without any pre-configured scope."
+commands.deny = ["execute_deletion_v1"]

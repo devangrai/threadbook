@@ -1,0 +1,138 @@
+{
+  "accepted_at": "2026-07-15T01:41:59+00:00",
+  "build_command": [
+    "make",
+    "build"
+  ],
+  "build_source_fingerprint": "e2227729315c5de2aeee7276f6a40f5bbce646d0d4391c5fceb2bfac2e419666",
+  "evaluate_command": [
+    "make",
+    "test"
+  ],
+  "evidence": [
+    {
+      "public_summary": {
+        "profile": "personal_mvp",
+        "verification": "focused production tests and source wiring passed"
+      },
+      "recorded_at": "2026-07-15T01:41:58+00:00",
+      "requirement_id": "P01-ARC-001",
+      "sha256": "486a6f8dc8a26dec0b617a0cdf2d38f8112f5a898006179127fcc750b2b5f26d",
+      "status": "pass",
+      "test": "p01_foundation::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "profile": "personal_mvp",
+        "verification": "focused production tests and source wiring passed"
+      },
+      "recorded_at": "2026-07-15T01:41:58+00:00",
+      "requirement_id": "P01-DAT-001",
+      "sha256": "f893f7d3fa560f519c66c681ee06aa67ce3db37c1e384664f41a7898a8ccf756",
+      "status": "pass",
+      "test": "p01_foundation::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "migration_sha256": "47b4cead36dfb80f717ad8b8dca112420cfa52f95a6b23e6dd52ae845f7bb057",
+        "profile": "personal_mvp",
+        "verification": "focused production tests and source wiring passed"
+      },
+      "recorded_at": "2026-07-15T01:41:58+00:00",
+      "requirement_id": "P01-DBS-001",
+      "sha256": "266ff3b3d3550f3bd5d48b986267b8bdab25b4b8bbab50759374b9710f70a980",
+      "status": "pass",
+      "test": "p01_foundation::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "profile": "personal_mvp",
+        "verification": "focused production tests and source wiring passed"
+      },
+      "recorded_at": "2026-07-15T01:41:58+00:00",
+      "requirement_id": "P01-JOB-001",
+      "sha256": "0080c42b05693d1a495a519baf745a9dae966e1d1bbdc5c474b9fc933da04c71",
+      "status": "pass",
+      "test": "p01_foundation::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "profile": "personal_mvp",
+        "verification": "focused production tests and source wiring passed"
+      },
+      "recorded_at": "2026-07-15T01:41:58+00:00",
+      "requirement_id": "P01-JOB-002",
+      "sha256": "71af48526d0fa509dd564e5303db7d745c99a6794ddc140ecc8229ff120b8d39",
+      "status": "pass",
+      "test": "p01_foundation::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "credential_store": "macos_security_framework",
+        "keychain_live_test": "deferred/not_run",
+        "live_limitation_deferred": true,
+        "plaintext_fallback": false,
+        "profile": "personal_mvp",
+        "verification": "focused production tests and source wiring passed"
+      },
+      "recorded_at": "2026-07-15T01:41:58+00:00",
+      "requirement_id": "P01-SEC-001",
+      "sha256": "f765685a9be1a6661a60b8a5c42a7343eff634bcd14e7454a616c52bac51dc8e",
+      "status": "pass",
+      "test": "p01_foundation::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "profile": "personal_mvp",
+        "verification": "focused production tests and source wiring passed"
+      },
+      "recorded_at": "2026-07-15T01:41:58+00:00",
+      "requirement_id": "P01-OBS-001",
+      "sha256": "f68b1be5e4e755a40a0156a3687cfaeef6d63e97100c6bccd664adf8365f80d3",
+      "status": "pass",
+      "test": "p01_foundation::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "gui_network_certification": "deferred",
+        "profile": "personal_mvp",
+        "smoke_scope": "platform_e2e_desktop_tests_ui_build",
+        "verification": "focused production tests and source wiring passed"
+      },
+      "recorded_at": "2026-07-15T01:41:58+00:00",
+      "requirement_id": "P01-OFF-001",
+      "sha256": "2014e35abd7c2e00fa12f5d65b238f7e607dc8c05902175b7a8e265a6808c0f9",
+      "status": "pass",
+      "test": "p01_foundation::focused_production_verification"
+    }
+  ],
+  "evidence_file_hashes": {
+    "P01-ARC-001.json": "486a6f8dc8a26dec0b617a0cdf2d38f8112f5a898006179127fcc750b2b5f26d",
+    "P01-DAT-001.json": "f893f7d3fa560f519c66c681ee06aa67ce3db37c1e384664f41a7898a8ccf756",
+    "P01-DBS-001.json": "266ff3b3d3550f3bd5d48b986267b8bdab25b4b8bbab50759374b9710f70a980",
+    "P01-JOB-001.json": "0080c42b05693d1a495a519baf745a9dae966e1d1bbdc5c474b9fc933da04c71",
+    "P01-JOB-002.json": "71af48526d0fa509dd564e5303db7d745c99a6794ddc140ecc8229ff120b8d39",
+    "P01-OBS-001.json": "f68b1be5e4e755a40a0156a3687cfaeef6d63e97100c6bccd664adf8365f80d3",
+    "P01-OFF-001.json": "2014e35abd7c2e00fa12f5d65b238f7e607dc8c05902175b7a8e265a6808c0f9",
+    "P01-SEC-001.json": "f765685a9be1a6661a60b8a5c42a7343eff634bcd14e7454a616c52bac51dc8e",
+    "p01-foundation-diagnostics.json": "769d8fde29e0d2f1b963f16829d97481463d61daa5f906941d8316b818c54c3c"
+  },
+  "phase": "P01",
+  "proposal_hash": "99acc0e3de44caafe32ad2b4b0307ab781dafe94666ba21de457b59c37c5e842",
+  "run_id": "20260715T010511Z-2bc7d2de",
+  "schema_version": 1,
+  "selected_requirement_ids": [
+    "P01-ARC-001",
+    "P01-DAT-001",
+    "P01-DBS-001",
+    "P01-JOB-001",
+    "P01-JOB-002",
+    "P01-OBS-001",
+    "P01-OFF-001",
+    "P01-SEC-001"
+  ],
+  "spec_hashes": {
+    "specs/phases/P01-foundation.md": "820170d149a18db10febc0dcc84ae8394e7d52bcf28b26f2fff5b8854e91d322",
+    "specs/system.md": "1cb32b71698c8accfafa34dab8c73eb47e047a49ccc6f2ac0b25734e1d8d1546"
+  }
+}

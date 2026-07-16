@@ -1,0 +1,72 @@
+{
+  "accepted_at": "2026-07-14T21:33:28+00:00",
+  "build_command": [
+    "make",
+    "build"
+  ],
+  "build_source_fingerprint": "96a6bdeca1bc92bcd6b0c17c0aff2d304080313acedab1f5d07c499288874573",
+  "evaluate_command": [
+    "make",
+    "test"
+  ],
+  "evidence": [
+    {
+      "public_summary": {
+        "app_permissions": [
+          "allow-get-runtime-info"
+        ],
+        "bundle_file_count": 3,
+        "bundle_format": "Mach-O app bundle",
+        "capability_permission_count": 1,
+        "csp_sha256": "61636080d45a0665956af464a7c7f862fe427832974d35ee465d461fcf0b61b8",
+        "dependency_count": 546,
+        "executable_sha256": "77e8ce9bbd24daca65092b18a45635a0d5b0b69ec816ec5e0e17357bd41be160",
+        "forbidden_runtime_findings": 0,
+        "hardened_runtime": true,
+        "navigation_policy_revision": "v1-tauri-localhost-loopback-debug",
+        "remote_ipc_denied": true,
+        "remote_navigation_denied": true,
+        "runtime_bridge_ready": true,
+        "signature": "adhoc",
+        "target_architecture": "arm64"
+      },
+      "recorded_at": "2026-07-14T21:33:28+00:00",
+      "requirement_id": "P00-PKG-002",
+      "sha256": "806078d6c108d5553f7f8bf6585e92fb654c22db2e355db4604c5064fc67985c",
+      "status": "pass",
+      "test": "tools.evaluators.p00_package.evaluate"
+    },
+    {
+      "public_summary": {
+        "accepted_fallback_adrs": [
+          "0001"
+        ],
+        "blocked_requirements": [
+          "P00-PKG-001"
+        ]
+      },
+      "recorded_at": "2026-07-14T21:33:28+00:00",
+      "requirement_id": "P00-GAT-001",
+      "sha256": "cbfcd2f1e0221ac5e42bac5599c0a851508d294e0a45d899a90658389d3db34d",
+      "status": "pass",
+      "test": "tools.evaluators.p00_package.validate_phase_gate"
+    }
+  ],
+  "evidence_file_hashes": {
+    "P00-GAT-001.json": "cbfcd2f1e0221ac5e42bac5599c0a851508d294e0a45d899a90658389d3db34d",
+    "P00-PKG-002.json": "806078d6c108d5553f7f8bf6585e92fb654c22db2e355db4604c5064fc67985c",
+    "p00-package-diagnostics.json": "7b3e035d38eafa12db99db74de93d0730d5f59f4e983976fd0921139de423c2e"
+  },
+  "phase": "P00",
+  "proposal_hash": "c02dca350f549ef8c2db4bfd35f2da68d098c1c14172f4c70c9dbb8b499c9247",
+  "run_id": "20260714T211500Z-b619fc7b",
+  "schema_version": 1,
+  "selected_requirement_ids": [
+    "P00-GAT-001",
+    "P00-PKG-002"
+  ],
+  "spec_hashes": {
+    "specs/phases/P00-feasibility.md": "c7dff465a81cfbf9b67efe2e4a4f9a9e9d17d3b7826cdebe63c7bf605cdf8907",
+    "specs/system.md": "1cb32b71698c8accfafa34dab8c73eb47e047a49ccc6f2ac0b25734e1d8d1546"
+  }
+}

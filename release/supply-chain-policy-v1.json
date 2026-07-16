@@ -1,0 +1,70 @@
+{
+  "cargo": {
+    "allowed_dependency_kinds": [
+      "build",
+      "normal"
+    ],
+    "first_party_license": "UNLICENSED",
+    "lockfile_path": "Cargo.lock",
+    "manifest_path": "Cargo.toml",
+    "registry_source": "registry+https://github.com/rust-lang/crates.io-index",
+    "root_package": "wardrobe-desktop",
+    "targets": [
+      "aarch64-apple-darwin",
+      "x86_64-apple-darwin"
+    ]
+  },
+  "models": {
+    "artifacts": [],
+    "local_providers": {
+      "segmentation": {
+        "availability": "unavailable"
+      }
+    },
+    "prohibitions": [
+      "dynamic_model_plugins",
+      "executable_model_artifacts",
+      "remote_model_code",
+      "runtime_model_downloads"
+    ],
+    "remote_model_code_allowed": false,
+    "remote_services": {
+      "outfit_recommendation": {
+        "downloads_code": false,
+        "model": "gpt-5.6-sol",
+        "provider": "openai"
+      },
+      "try_on_visualization": {
+        "downloads_code": false,
+        "model": "gpt-image-2",
+        "provider": "openai"
+      }
+    },
+    "root": "assets/model-artifacts"
+  },
+  "npm": {
+    "install_script_allowlist": [
+      {
+        "name": "esbuild",
+        "version": "0.28.1"
+      },
+      {
+        "name": "fsevents",
+        "version": "2.3.2"
+      },
+      {
+        "name": "fsevents",
+        "version": "2.3.3"
+      }
+    ],
+    "lockfile_path": "package-lock.json",
+    "registry_base_url": "https://registry.npmjs.org/"
+  },
+  "release_metadata_path": "release/wardrobe-build-metadata-v1.json",
+  "schema_version": 1,
+  "swift": {
+    "allow_external_dependencies": false,
+    "manifest_sha256": "a66a083811ef03017b0853068ebf7fbece1b7709a3dc281f281c04845d652ef8",
+    "package_path": "native/photokit"
+  }
+}

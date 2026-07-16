@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-sync-gmail-v1"
+description = "Enables the sync_gmail_v1 command without any pre-configured scope."
+commands.allow = ["sync_gmail_v1"]
+
+[[permission]]
+identifier = "deny-sync-gmail-v1"
+description = "Denies the sync_gmail_v1 command without any pre-configured scope."
+commands.deny = ["sync_gmail_v1"]

@@ -1,0 +1,269 @@
+{
+  "accepted_at": "2026-07-15T19:54:38+00:00",
+  "build_command": [
+    "make",
+    "build"
+  ],
+  "build_source_fingerprint": "c80a04c1f1663dedb3696d6199c907e46152b894f17c2efe8ad9a760d941c719",
+  "evaluate_command": [
+    "make",
+    "test"
+  ],
+  "evidence": [
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 5,
+        "compiled_smoke": true,
+        "feature_enabled": true,
+        "packet_sha256": "49b94a423a95558ce4abb1226474e056776b1c9a8671df0317886f81be834aa0",
+        "source_file_count": 24,
+        "source_sha256": "f25117504b1ec7637a72f355a84bf41eef393ab328ef091d56aaf02c3b061bbb"
+      },
+      "recorded_at": "2026-07-15T19:54:01+00:00",
+      "requirement_id": "SYS-ARC-001",
+      "sha256": "066309b227b944acf1983531ad0f594565809230e9e0f5416cda029233b47b84",
+      "status": "pass",
+      "test": "p09_diagnostics::focused_redacted_export_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 5,
+        "compiled_smoke": true,
+        "feature_enabled": true,
+        "packet_sha256": "49b94a423a95558ce4abb1226474e056776b1c9a8671df0317886f81be834aa0",
+        "source_file_count": 24,
+        "source_sha256": "f25117504b1ec7637a72f355a84bf41eef393ab328ef091d56aaf02c3b061bbb"
+      },
+      "recorded_at": "2026-07-15T19:54:01+00:00",
+      "requirement_id": "SYS-DAT-001",
+      "sha256": "8d4c7e5719f94aa05944b7ec42d192b3375e5217718e39d077cecf24975ca5cb",
+      "status": "pass",
+      "test": "p09_diagnostics::focused_redacted_export_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 5,
+        "compiled_smoke": true,
+        "feature_enabled": true,
+        "packet_sha256": "49b94a423a95558ce4abb1226474e056776b1c9a8671df0317886f81be834aa0",
+        "source_file_count": 24,
+        "source_sha256": "f25117504b1ec7637a72f355a84bf41eef393ab328ef091d56aaf02c3b061bbb"
+      },
+      "recorded_at": "2026-07-15T19:54:01+00:00",
+      "requirement_id": "SYS-DAT-002",
+      "sha256": "4b1568716e30cf02e7d4eba948b0b6cf0ad719d543231c6692fa60d7f50e34f7",
+      "status": "pass",
+      "test": "p09_diagnostics::focused_redacted_export_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 5,
+        "compiled_smoke": true,
+        "feature_enabled": true,
+        "packet_sha256": "49b94a423a95558ce4abb1226474e056776b1c9a8671df0317886f81be834aa0",
+        "source_file_count": 24,
+        "source_sha256": "f25117504b1ec7637a72f355a84bf41eef393ab328ef091d56aaf02c3b061bbb"
+      },
+      "recorded_at": "2026-07-15T19:54:01+00:00",
+      "requirement_id": "SYS-DEC-001",
+      "sha256": "0e22f5a9ec81d4e857090f8eeb191fe827d814068d6e2b9018683299d44ec9c2",
+      "status": "pass",
+      "test": "p09_diagnostics::focused_redacted_export_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 5,
+        "compiled_smoke": true,
+        "feature_enabled": true,
+        "packet_sha256": "49b94a423a95558ce4abb1226474e056776b1c9a8671df0317886f81be834aa0",
+        "source_file_count": 24,
+        "source_sha256": "f25117504b1ec7637a72f355a84bf41eef393ab328ef091d56aaf02c3b061bbb"
+      },
+      "recorded_at": "2026-07-15T19:54:01+00:00",
+      "requirement_id": "SYS-REL-001",
+      "sha256": "4658ed68b32cc81d6a603fbe15ce61b7deb30f40470b4d39bc7dde2c083ddaf6",
+      "status": "pass",
+      "test": "p09_diagnostics::focused_redacted_export_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "deferred_not_passed",
+        "checks_passed": 5,
+        "compiled_smoke": true,
+        "deferred_limitation": "Packaged clean-machine network-disabled certification deferred.",
+        "feature_enabled": false,
+        "packet_sha256": "49b94a423a95558ce4abb1226474e056776b1c9a8671df0317886f81be834aa0",
+        "source_file_count": 24,
+        "source_sha256": "f25117504b1ec7637a72f355a84bf41eef393ab328ef091d56aaf02c3b061bbb"
+      },
+      "recorded_at": "2026-07-15T19:54:01+00:00",
+      "requirement_id": "SYS-REL-002",
+      "sha256": "6e0dd3d5006ea04dd2aaaa9db7042ac14b4a961a6719f6819fc8e9ac14a3e870",
+      "status": "deferred",
+      "test": "p09_diagnostics::deferred_external_certification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 5,
+        "compiled_smoke": true,
+        "feature_enabled": true,
+        "packet_sha256": "49b94a423a95558ce4abb1226474e056776b1c9a8671df0317886f81be834aa0",
+        "source_file_count": 24,
+        "source_sha256": "f25117504b1ec7637a72f355a84bf41eef393ab328ef091d56aaf02c3b061bbb"
+      },
+      "recorded_at": "2026-07-15T19:54:01+00:00",
+      "requirement_id": "SYS-SEC-001",
+      "sha256": "235fea2c07869739113f333560a10250f08777e4ea30c618fdfa8057aa507539",
+      "status": "pass",
+      "test": "p09_diagnostics::focused_redacted_export_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "deferred_not_passed",
+        "checks_passed": 5,
+        "compiled_smoke": true,
+        "deferred_limitation": "Manual live Keychain inspection deferred.",
+        "feature_enabled": false,
+        "packet_sha256": "49b94a423a95558ce4abb1226474e056776b1c9a8671df0317886f81be834aa0",
+        "source_file_count": 24,
+        "source_sha256": "f25117504b1ec7637a72f355a84bf41eef393ab328ef091d56aaf02c3b061bbb"
+      },
+      "recorded_at": "2026-07-15T19:54:01+00:00",
+      "requirement_id": "SYS-SEC-002",
+      "sha256": "66b30d355cb35be1667932851c5dd2ad37a16aab3bee5709131abd985df72af9",
+      "status": "deferred",
+      "test": "p09_diagnostics::deferred_external_certification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 5,
+        "compiled_smoke": true,
+        "feature_enabled": true,
+        "packet_sha256": "49b94a423a95558ce4abb1226474e056776b1c9a8671df0317886f81be834aa0",
+        "source_file_count": 24,
+        "source_sha256": "f25117504b1ec7637a72f355a84bf41eef393ab328ef091d56aaf02c3b061bbb"
+      },
+      "recorded_at": "2026-07-15T19:54:01+00:00",
+      "requirement_id": "SYS-PRV-001",
+      "sha256": "b230da93da6d17014eeb99f9f89164c2f33a0ea5a1a8eb280d5b32aebf73096f",
+      "status": "pass",
+      "test": "p09_diagnostics::focused_redacted_export_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 5,
+        "compiled_smoke": true,
+        "feature_enabled": true,
+        "packet_sha256": "49b94a423a95558ce4abb1226474e056776b1c9a8671df0317886f81be834aa0",
+        "source_file_count": 24,
+        "source_sha256": "f25117504b1ec7637a72f355a84bf41eef393ab328ef091d56aaf02c3b061bbb"
+      },
+      "recorded_at": "2026-07-15T19:54:01+00:00",
+      "requirement_id": "SYS-OBS-001",
+      "sha256": "08221b7c6dce276f55dfafd46937f05787533f0d773811c4775b5c9f835ce83a",
+      "status": "pass",
+      "test": "p09_diagnostics::focused_redacted_export_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 5,
+        "compiled_smoke": true,
+        "feature_enabled": true,
+        "packet_sha256": "49b94a423a95558ce4abb1226474e056776b1c9a8671df0317886f81be834aa0",
+        "source_file_count": 24,
+        "source_sha256": "f25117504b1ec7637a72f355a84bf41eef393ab328ef091d56aaf02c3b061bbb"
+      },
+      "recorded_at": "2026-07-15T19:54:01+00:00",
+      "requirement_id": "SYS-DEL-001",
+      "sha256": "00e8cbb14e65bce728f1ea250a85eb6398f41e4f67d85477e8899f05465d5ea2",
+      "status": "pass",
+      "test": "p09_diagnostics::focused_redacted_export_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 5,
+        "compiled_smoke": true,
+        "feature_enabled": true,
+        "packet_sha256": "49b94a423a95558ce4abb1226474e056776b1c9a8671df0317886f81be834aa0",
+        "source_file_count": 24,
+        "source_sha256": "f25117504b1ec7637a72f355a84bf41eef393ab328ef091d56aaf02c3b061bbb"
+      },
+      "recorded_at": "2026-07-15T19:54:01+00:00",
+      "requirement_id": "SYS-UPG-001",
+      "sha256": "e4797e95e80ba4e6f54fbbd6de9ff9d2d886a5def2b3d25dd09ce657b29714d9",
+      "status": "pass",
+      "test": "p09_diagnostics::focused_redacted_export_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "deferred_not_passed",
+        "checks_passed": 5,
+        "compiled_smoke": true,
+        "deferred_limitation": "Aggregate manual keyboard and screen-reader certification deferred.",
+        "feature_enabled": false,
+        "packet_sha256": "49b94a423a95558ce4abb1226474e056776b1c9a8671df0317886f81be834aa0",
+        "source_file_count": 24,
+        "source_sha256": "f25117504b1ec7637a72f355a84bf41eef393ab328ef091d56aaf02c3b061bbb"
+      },
+      "recorded_at": "2026-07-15T19:54:01+00:00",
+      "requirement_id": "SYS-A11Y-001",
+      "sha256": "9619af4f7c3b3b227e3865e4b4286704a3d2eecff65924428d9334192fd01c37",
+      "status": "deferred",
+      "test": "p09_diagnostics::deferred_external_certification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 5,
+        "compiled_smoke": true,
+        "feature_enabled": true,
+        "packet_sha256": "49b94a423a95558ce4abb1226474e056776b1c9a8671df0317886f81be834aa0",
+        "source_file_count": 24,
+        "source_sha256": "f25117504b1ec7637a72f355a84bf41eef393ab328ef091d56aaf02c3b061bbb"
+      },
+      "recorded_at": "2026-07-15T19:54:01+00:00",
+      "requirement_id": "P09-DIA-001",
+      "sha256": "cb1bb409dc4abf444d23c6f88819214e8ea3d04d75e8c9510e4f253718f4ec60",
+      "status": "pass",
+      "test": "p09_diagnostics::focused_redacted_export_verification"
+    }
+  ],
+  "evidence_file_hashes": {
+    "P09-DIA-001.json": "cb1bb409dc4abf444d23c6f88819214e8ea3d04d75e8c9510e4f253718f4ec60",
+    "SYS-A11Y-001.json": "9619af4f7c3b3b227e3865e4b4286704a3d2eecff65924428d9334192fd01c37",
+    "SYS-ARC-001.json": "066309b227b944acf1983531ad0f594565809230e9e0f5416cda029233b47b84",
+    "SYS-DAT-001.json": "8d4c7e5719f94aa05944b7ec42d192b3375e5217718e39d077cecf24975ca5cb",
+    "SYS-DAT-002.json": "4b1568716e30cf02e7d4eba948b0b6cf0ad719d543231c6692fa60d7f50e34f7",
+    "SYS-DEC-001.json": "0e22f5a9ec81d4e857090f8eeb191fe827d814068d6e2b9018683299d44ec9c2",
+    "SYS-DEL-001.json": "00e8cbb14e65bce728f1ea250a85eb6398f41e4f67d85477e8899f05465d5ea2",
+    "SYS-OBS-001.json": "08221b7c6dce276f55dfafd46937f05787533f0d773811c4775b5c9f835ce83a",
+    "SYS-PRV-001.json": "b230da93da6d17014eeb99f9f89164c2f33a0ea5a1a8eb280d5b32aebf73096f",
+    "SYS-REL-001.json": "4658ed68b32cc81d6a603fbe15ce61b7deb30f40470b4d39bc7dde2c083ddaf6",
+    "SYS-REL-002.json": "6e0dd3d5006ea04dd2aaaa9db7042ac14b4a961a6719f6819fc8e9ac14a3e870",
+    "SYS-SEC-001.json": "235fea2c07869739113f333560a10250f08777e4ea30c618fdfa8057aa507539",
+    "SYS-SEC-002.json": "66b30d355cb35be1667932851c5dd2ad37a16aab3bee5709131abd985df72af9",
+    "SYS-UPG-001.json": "e4797e95e80ba4e6f54fbbd6de9ff9d2d886a5def2b3d25dd09ce657b29714d9",
+    "p09-diagnostics-evaluator.json": "01e7e67bfd5fb3a1fdf66973dcc6d5b858cc650259698164b9f0f0105cc36c4d"
+  },
+  "phase": "P09",
+  "proposal_hash": "5f8dd85658478d7320bf16725e091f9e21b6878666ce6aecaf2c4632f0764cea",
+  "run_id": "20260715T181740Z-9ea04245",
+  "schema_version": 1,
+  "selected_requirement_ids": [
+    "P09-DIA-001"
+  ],
+  "spec_hashes": {
+    "specs/phases/P09-hardening.md": "b88c11b3f97bf7936f19cc6f6e187268eeb0c6a6c11f12de17ed2edf36455846",
+    "specs/system.md": "1cb32b71698c8accfafa34dab8c73eb47e047a49ccc6f2ac0b25734e1d8d1546"
+  }
+}

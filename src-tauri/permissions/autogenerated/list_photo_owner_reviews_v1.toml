@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-list-photo-owner-reviews-v1"
+description = "Enables the list_photo_owner_reviews_v1 command without any pre-configured scope."
+commands.allow = ["list_photo_owner_reviews_v1"]
+
+[[permission]]
+identifier = "deny-list-photo-owner-reviews-v1"
+description = "Denies the list_photo_owner_reviews_v1 command without any pre-configured scope."
+commands.deny = ["list_photo_owner_reviews_v1"]

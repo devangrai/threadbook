@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-local-only-v1"
+description = "Enables the set_local_only_v1 command without any pre-configured scope."
+commands.allow = ["set_local_only_v1"]
+
+[[permission]]
+identifier = "deny-set-local-only-v1"
+description = "Denies the set_local_only_v1 command without any pre-configured scope."
+commands.deny = ["set_local_only_v1"]

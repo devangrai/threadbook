@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-split-item-v1"
+description = "Enables the split_item_v1 command without any pre-configured scope."
+commands.allow = ["split_item_v1"]
+
+[[permission]]
+identifier = "deny-split-item-v1"
+description = "Denies the split_item_v1 command without any pre-configured scope."
+commands.deny = ["split_item_v1"]

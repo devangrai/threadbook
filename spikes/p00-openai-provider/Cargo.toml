@@ -1,0 +1,26 @@
+[package]
+name = "p00-openai-provider"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[features]
+default = []
+live-canary = ["dep:reqwest"]
+
+[dependencies]
+base64 = "0.22"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+reqwest = { version = "0.13", optional = true, default-features = false, features = ["blocking", "json", "rustls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+
+[[bin]]
+name = "p00-openai-canary"
+path = "src/bin/p00-openai-canary.rs"
+required-features = ["live-canary"]
+
+[[test]]
+name = "contract"
+path = "tests/contract.rs"

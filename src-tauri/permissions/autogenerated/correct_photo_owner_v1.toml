@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-correct-photo-owner-v1"
+description = "Enables the correct_photo_owner_v1 command without any pre-configured scope."
+commands.allow = ["correct_photo_owner_v1"]
+
+[[permission]]
+identifier = "deny-correct-photo-owner-v1"
+description = "Denies the correct_photo_owner_v1 command without any pre-configured scope."
+commands.deny = ["correct_photo_owner_v1"]

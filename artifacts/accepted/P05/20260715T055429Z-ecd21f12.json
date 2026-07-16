@@ -1,0 +1,127 @@
+{
+  "accepted_at": "2026-07-15T06:44:56+00:00",
+  "build_command": [
+    "make",
+    "build"
+  ],
+  "build_source_fingerprint": "24d27acdd2ad960a77c09dcc188ddfb97c40934dfca3b19f49d79a58babb461f",
+  "evaluate_command": [
+    "make",
+    "test"
+  ],
+  "evidence": [
+    {
+      "public_summary": {
+        "calibration_and_automatic_acceptance": "deferred",
+        "clean_machine_certification": "deferred",
+        "migration_sha256": "909bd4d44a7c0a59670b43f386e241fdd9be64708e6741cc9669c1b61874256f",
+        "model_adjudication": "deferred",
+        "notarization": "deferred",
+        "packet_sha256": "4d675985735816fab55ef244c763d19da496439748fc89570953763167d394b6",
+        "profile": "personal_mvp",
+        "provider_credentials": "deferred",
+        "source_sha256": "1791b3023ac1bf23c388504d099bb80bb8650f6faa541caf3aaa4e8bfca410ec"
+      },
+      "recorded_at": "2026-07-15T06:43:41+00:00",
+      "requirement_id": "P05-CAN-001",
+      "sha256": "2bd6dc5b39a5d36db388b544f0e7a5069d8fc4ab187d0191f9cf908bcb73f713",
+      "status": "pass",
+      "test": "p05_reconciliation::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "calibration_and_automatic_acceptance": "deferred",
+        "clean_machine_certification": "deferred",
+        "migration_sha256": "909bd4d44a7c0a59670b43f386e241fdd9be64708e6741cc9669c1b61874256f",
+        "model_adjudication": "deferred",
+        "notarization": "deferred",
+        "packet_sha256": "4d675985735816fab55ef244c763d19da496439748fc89570953763167d394b6",
+        "profile": "personal_mvp",
+        "provider_credentials": "deferred",
+        "source_sha256": "1791b3023ac1bf23c388504d099bb80bb8650f6faa541caf3aaa4e8bfca410ec"
+      },
+      "recorded_at": "2026-07-15T06:43:41+00:00",
+      "requirement_id": "P05-IDN-001",
+      "sha256": "51c20ec125db8a64cf1b4d7458addc7c10b32faf7429bd89ec21354a0ef3e72b",
+      "status": "pass",
+      "test": "p05_reconciliation::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "calibration_and_automatic_acceptance": "deferred",
+        "clean_machine_certification": "deferred",
+        "migration_sha256": "909bd4d44a7c0a59670b43f386e241fdd9be64708e6741cc9669c1b61874256f",
+        "model_adjudication": "deferred",
+        "notarization": "deferred",
+        "packet_sha256": "4d675985735816fab55ef244c763d19da496439748fc89570953763167d394b6",
+        "profile": "personal_mvp",
+        "provider_credentials": "deferred",
+        "source_sha256": "1791b3023ac1bf23c388504d099bb80bb8650f6faa541caf3aaa4e8bfca410ec"
+      },
+      "recorded_at": "2026-07-15T06:43:41+00:00",
+      "requirement_id": "P05-EVD-001",
+      "sha256": "b05dbe1f721446ea07175995ac03f6a61ed7e6d2b591a826f1ae085f7dfc9f38",
+      "status": "pass",
+      "test": "p05_reconciliation::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "calibration_and_automatic_acceptance": "deferred",
+        "clean_machine_certification": "deferred",
+        "migration_sha256": "909bd4d44a7c0a59670b43f386e241fdd9be64708e6741cc9669c1b61874256f",
+        "model_adjudication": "deferred",
+        "notarization": "deferred",
+        "packet_sha256": "4d675985735816fab55ef244c763d19da496439748fc89570953763167d394b6",
+        "profile": "personal_mvp",
+        "provider_credentials": "deferred",
+        "source_sha256": "1791b3023ac1bf23c388504d099bb80bb8650f6faa541caf3aaa4e8bfca410ec"
+      },
+      "recorded_at": "2026-07-15T06:43:41+00:00",
+      "requirement_id": "P05-REV-001",
+      "sha256": "f849fb980c62cb80a787bac7fbdf0a642ac5c497189f28b8bf438a5cebec4540",
+      "status": "pass",
+      "test": "p05_reconciliation::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "calibration_and_automatic_acceptance": "deferred",
+        "clean_machine_certification": "deferred",
+        "migration_sha256": "909bd4d44a7c0a59670b43f386e241fdd9be64708e6741cc9669c1b61874256f",
+        "model_adjudication": "deferred",
+        "notarization": "deferred",
+        "packet_sha256": "4d675985735816fab55ef244c763d19da496439748fc89570953763167d394b6",
+        "profile": "personal_mvp",
+        "provider_credentials": "deferred",
+        "source_sha256": "1791b3023ac1bf23c388504d099bb80bb8650f6faa541caf3aaa4e8bfca410ec"
+      },
+      "recorded_at": "2026-07-15T06:43:41+00:00",
+      "requirement_id": "P05-DEC-001",
+      "sha256": "2cb5f383186f58b4645d33b175cfbfa3eb1ddd00856cf49c7a76b4b77f4dff4c",
+      "status": "pass",
+      "test": "p05_reconciliation::focused_production_verification"
+    }
+  ],
+  "evidence_file_hashes": {
+    "P05-CAN-001.json": "2bd6dc5b39a5d36db388b544f0e7a5069d8fc4ab187d0191f9cf908bcb73f713",
+    "P05-DEC-001.json": "2cb5f383186f58b4645d33b175cfbfa3eb1ddd00856cf49c7a76b4b77f4dff4c",
+    "P05-EVD-001.json": "b05dbe1f721446ea07175995ac03f6a61ed7e6d2b591a826f1ae085f7dfc9f38",
+    "P05-IDN-001.json": "51c20ec125db8a64cf1b4d7458addc7c10b32faf7429bd89ec21354a0ef3e72b",
+    "P05-REV-001.json": "f849fb980c62cb80a787bac7fbdf0a642ac5c497189f28b8bf438a5cebec4540",
+    "p05-reconciliation-diagnostics.json": "3e58c6d6a98d74bb0756cb40191674fd0589bb4412fbb8454a334e1274313e08"
+  },
+  "phase": "P05",
+  "proposal_hash": "9bfeef575a5fa1cee7b410f5d79af36f91a676e4b7a083e757756f316c7df80e",
+  "run_id": "20260715T055429Z-ecd21f12",
+  "schema_version": 1,
+  "selected_requirement_ids": [
+    "P05-CAN-001",
+    "P05-DEC-001",
+    "P05-EVD-001",
+    "P05-IDN-001",
+    "P05-REV-001"
+  ],
+  "spec_hashes": {
+    "specs/phases/P05-reconciliation.md": "60ecf992e4e954f00b7fdcf51780c78b510fb66bae1a51f8345a55fab1ba67a9",
+    "specs/system.md": "1cb32b71698c8accfafa34dab8c73eb47e047a49ccc6f2ac0b25734e1d8d1546"
+  }
+}

@@ -32,6 +32,16 @@ Statements must use one of these forms:
 5. Evaluation requires passing evidence for every snapshotted requirement.
 6. A changed specification invalidates an existing work packet.
 
+## Personal MVP profile
+
+Each packet implements one usable vertical slice, receives one independent
+review, and is evaluated with focused unit tests, one end-to-end smoke test,
+and the full regression suite at the phase boundary. Missing external
+credentials, notarization, genuine model packs, and clean-machine
+certification are recorded as deferred limitations when a real local fallback
+preserves privacy, atomicity, backups, deletion accounting, and user authority.
+Deferred capabilities remain disabled and must not be reported as passed.
+
 A work packet may select one or more phase requirements:
 
 ```bash

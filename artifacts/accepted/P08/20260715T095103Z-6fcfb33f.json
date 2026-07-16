@@ -1,0 +1,167 @@
+{
+  "accepted_at": "2026-07-15T11:41:36+00:00",
+  "build_command": [
+    "make",
+    "build"
+  ],
+  "build_source_fingerprint": "32678e51e0a00debd3184a308023b0746f7abb2e085734e575fcd69ed8f06f90",
+  "evaluate_command": [
+    "make",
+    "test"
+  ],
+  "evidence": [
+    {
+      "public_summary": {
+        "acceptance_claim": "local_requirement_passed",
+        "feature_enabled": false,
+        "live_canary_acceptance_claim": "deferred_not_passed",
+        "live_canary_status": "deferred",
+        "production_adapter_calls": 0,
+        "profile": "personal_mvp",
+        "quality_acceptance_claim": "deferred_not_passed",
+        "quality_study_status": "deferred",
+        "release_channel": "experimental"
+      },
+      "recorded_at": "2026-07-15T11:39:54+00:00",
+      "requirement_id": "P08-EXP-001",
+      "sha256": "91ca5a6fbe6b6544d3b2c186795b35a69dd9490d839cb2b0322e5d8ab151b5ed",
+      "status": "pass",
+      "test": "p08_try_on::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "local_requirement_passed",
+        "feature_enabled": false,
+        "live_canary_acceptance_claim": "deferred_not_passed",
+        "live_canary_status": "deferred",
+        "production_adapter_calls": 0,
+        "profile": "personal_mvp",
+        "quality_acceptance_claim": "deferred_not_passed",
+        "quality_study_status": "deferred",
+        "release_channel": "experimental"
+      },
+      "recorded_at": "2026-07-15T11:39:54+00:00",
+      "requirement_id": "P08-LBL-001",
+      "sha256": "2d52c98e255fe1431c86d26dd5873edd0e8005737a6de51fbd7e9673ccfecaae",
+      "status": "pass",
+      "test": "p08_try_on::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "local_requirement_passed",
+        "feature_enabled": false,
+        "live_canary_acceptance_claim": "deferred_not_passed",
+        "live_canary_status": "deferred",
+        "production_adapter_calls": 0,
+        "profile": "personal_mvp",
+        "quality_acceptance_claim": "deferred_not_passed",
+        "quality_study_status": "deferred",
+        "release_channel": "experimental"
+      },
+      "recorded_at": "2026-07-15T11:39:54+00:00",
+      "requirement_id": "P08-SRC-001",
+      "sha256": "f4f4533f6be6d36b56fbe30a4dc8e63ad1a88782f152b1932b49cd9893fa9b7d",
+      "status": "pass",
+      "test": "p08_try_on::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "local_requirement_passed",
+        "feature_enabled": false,
+        "live_canary_acceptance_claim": "deferred_not_passed",
+        "live_canary_status": "deferred",
+        "production_adapter_calls": 0,
+        "profile": "personal_mvp",
+        "quality_acceptance_claim": "deferred_not_passed",
+        "quality_study_status": "deferred",
+        "release_channel": "experimental"
+      },
+      "recorded_at": "2026-07-15T11:39:54+00:00",
+      "requirement_id": "P08-EVD-001",
+      "sha256": "aff23e17f853131c119c995c96a99acfcf9f7acbf8893035e10693e22cfe2b8a",
+      "status": "pass",
+      "test": "p08_try_on::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "local_requirement_passed",
+        "feature_enabled": false,
+        "live_canary_acceptance_claim": "deferred_not_passed",
+        "live_canary_status": "deferred",
+        "production_adapter_calls": 0,
+        "profile": "personal_mvp",
+        "quality_acceptance_claim": "deferred_not_passed",
+        "quality_study_status": "deferred",
+        "release_channel": "experimental"
+      },
+      "recorded_at": "2026-07-15T11:39:54+00:00",
+      "requirement_id": "P08-ERR-001",
+      "sha256": "667b5326dc79dc30045706c52f92114e851766629eb73507a6c18b19343e2e4f",
+      "status": "pass",
+      "test": "p08_try_on::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "local_requirement_passed",
+        "feature_enabled": false,
+        "live_canary_acceptance_claim": "deferred_not_passed",
+        "live_canary_status": "deferred",
+        "production_adapter_calls": 0,
+        "profile": "personal_mvp",
+        "quality_acceptance_claim": "deferred_not_passed",
+        "quality_study_status": "deferred",
+        "release_channel": "experimental"
+      },
+      "recorded_at": "2026-07-15T11:39:54+00:00",
+      "requirement_id": "P08-PRV-001",
+      "sha256": "a13694da46452964387cd5f254f753c49aea2cbab5254101f93463b51f0d54d0",
+      "status": "pass",
+      "test": "p08_try_on::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "deferred_not_passed",
+        "deferred_limitation": "The approved blinded identity, garment-detail, and misleading-output study has not been supplied; non-experimental availability is disabled.",
+        "feature_enabled": false,
+        "human_evaluation_cases": 0,
+        "live_canary_acceptance_claim": "deferred_not_passed",
+        "live_canary_status": "deferred",
+        "production_adapter_calls": 0,
+        "profile": "personal_mvp",
+        "release_channel": "experimental"
+      },
+      "recorded_at": "2026-07-15T11:39:54+00:00",
+      "requirement_id": "P08-QLT-001",
+      "sha256": "76b1ce378ba1e22bf910be155b3fe5db17723188f6ecb9d1186043d7e2c848d4",
+      "status": "deferred",
+      "test": "p08_try_on::experimental_quality_gate"
+    }
+  ],
+  "evidence_file_hashes": {
+    "P08-ERR-001.json": "667b5326dc79dc30045706c52f92114e851766629eb73507a6c18b19343e2e4f",
+    "P08-EVD-001.json": "aff23e17f853131c119c995c96a99acfcf9f7acbf8893035e10693e22cfe2b8a",
+    "P08-EXP-001.json": "91ca5a6fbe6b6544d3b2c186795b35a69dd9490d839cb2b0322e5d8ab151b5ed",
+    "P08-LBL-001.json": "2d52c98e255fe1431c86d26dd5873edd0e8005737a6de51fbd7e9673ccfecaae",
+    "P08-PRV-001.json": "a13694da46452964387cd5f254f753c49aea2cbab5254101f93463b51f0d54d0",
+    "P08-QLT-001.json": "76b1ce378ba1e22bf910be155b3fe5db17723188f6ecb9d1186043d7e2c848d4",
+    "P08-SRC-001.json": "f4f4533f6be6d36b56fbe30a4dc8e63ad1a88782f152b1932b49cd9893fa9b7d",
+    "p08-try-on-diagnostics.json": "acecffa5ffdb640185bca9c94b2492d77f90b9b77dc8364a470a23b986907a6f"
+  },
+  "phase": "P08",
+  "proposal_hash": "869f362fe78d35b4c30a69aeca6d25e8be1c23bd7a77e0605014aaeb80d963f0",
+  "run_id": "20260715T095103Z-6fcfb33f",
+  "schema_version": 1,
+  "selected_requirement_ids": [
+    "P08-ERR-001",
+    "P08-EVD-001",
+    "P08-EXP-001",
+    "P08-LBL-001",
+    "P08-PRV-001",
+    "P08-QLT-001",
+    "P08-SRC-001"
+  ],
+  "spec_hashes": {
+    "specs/phases/P08-try-on.md": "2bdf1c8cad49f75a7434b89dd150877b965b63842194c87abb671af39d274d2d",
+    "specs/system.md": "1cb32b71698c8accfafa34dab8c73eb47e047a49ccc6f2ac0b25734e1d8d1546"
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "accepted_at": "2026-07-16T10:46:36+00:00",
+  "build_command": [
+    "make",
+    "build"
+  ],
+  "build_source_fingerprint": "83943b280ee9784fc2912096136d3ed4b2afeed3074ab8fd653095d07d48a484",
+  "evaluate_command": [
+    "make",
+    "test"
+  ],
+  "evidence": [
+    {
+      "public_summary": {
+        "acceptance_claim": "local_requirement_passed",
+        "automatic_segmentation_enabled": false,
+        "feature_enabled": true,
+        "identity_assignment": false,
+        "owner_confirmation_required": true,
+        "person_detection_provider": "apple_vision_human_rectangles_v1"
+      },
+      "recorded_at": "2026-07-16T10:45:19+00:00",
+      "requirement_id": "P04-PER-001",
+      "sha256": "bee1fc5b28649cf158ff4c23b2144c58a3ebdde03eb03fc530143d6bb0e7eda4",
+      "status": "pass",
+      "test": "p04_people::focused_local_people_owner_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "local_requirement_passed",
+        "automatic_segmentation_enabled": false,
+        "feature_enabled": true,
+        "identity_assignment": false,
+        "owner_confirmation_required": true,
+        "person_detection_provider": "apple_vision_human_rectangles_v1"
+      },
+      "recorded_at": "2026-07-16T10:45:19+00:00",
+      "requirement_id": "P04-OWN-001",
+      "sha256": "1f9e795de0db0247d741e1d7158fdd7e238ffc876a2b03cebd5d9132b16aac41",
+      "status": "pass",
+      "test": "p04_people::focused_local_people_owner_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "deferred_not_passed",
+        "deferred_limitation": "Automatic garment segmentation and its approved Mac dataset evaluation are unavailable; no recall or mask-IoU threshold is claimed.",
+        "feature_enabled": false
+      },
+      "recorded_at": "2026-07-16T10:45:19+00:00",
+      "requirement_id": "P04-QLT-001",
+      "sha256": "82782b39dd8d4c6a3d48c0f153ac42f193e444d2e78e2e6a770191da1a5cb418",
+      "status": "deferred",
+      "test": "p04_people::disabled_segmentation_limitation"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "deferred_not_passed",
+        "deferred_limitation": "The local segmentation model pack is disabled; no warm-p95 latency or peak-memory benchmark has been accepted.",
+        "feature_enabled": false
+      },
+      "recorded_at": "2026-07-16T10:45:19+00:00",
+      "requirement_id": "P04-PERF-001",
+      "sha256": "f4615c5c7fe766f956775d8415755642f90d81f2f0eda88f718705469c576538",
+      "status": "deferred",
+      "test": "p04_people::disabled_segmentation_limitation"
+    }
+  ],
+  "evidence_file_hashes": {
+    "P04-OWN-001.json": "1f9e795de0db0247d741e1d7158fdd7e238ffc876a2b03cebd5d9132b16aac41",
+    "P04-PER-001.json": "bee1fc5b28649cf158ff4c23b2144c58a3ebdde03eb03fc530143d6bb0e7eda4",
+    "P04-PERF-001.json": "f4615c5c7fe766f956775d8415755642f90d81f2f0eda88f718705469c576538",
+    "P04-QLT-001.json": "82782b39dd8d4c6a3d48c0f153ac42f193e444d2e78e2e6a770191da1a5cb418",
+    "p04-people-diagnostics.json": "566cee17aa892cfd4b1a2ea37a9de02aed5f42a5e1d3ecb43cfe2a380f12e01e"
+  },
+  "phase": "P04",
+  "proposal_hash": "eac67a64c44a42e3dde5d9a7b7e931eae1bffd3a56b9afc6fe779ede8472b0a4",
+  "run_id": "20260716T080942Z-897a520d",
+  "schema_version": 1,
+  "selected_requirement_ids": [
+    "P04-OWN-001",
+    "P04-PER-001",
+    "P04-PERF-001",
+    "P04-QLT-001"
+  ],
+  "spec_hashes": {
+    "specs/phases/P04-photo-analysis.md": "3fb58a5c42f5c15763d31fe629aafeaba58117b03550ad1742bc939db1d25390",
+    "specs/system.md": "1cb32b71698c8accfafa34dab8c73eb47e047a49ccc6f2ac0b25734e1d8d1546"
+  }
+}

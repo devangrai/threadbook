@@ -1,0 +1,103 @@
+{
+  "accepted_at": "2026-07-15T08:01:18+00:00",
+  "build_command": [
+    "make",
+    "build"
+  ],
+  "build_source_fingerprint": "cd946711faf38ada7d5a013f179a3e67ff86fe3a01851a489055e2541b753380",
+  "evaluate_command": [
+    "make",
+    "test"
+  ],
+  "evidence": [
+    {
+      "public_summary": {
+        "clean_machine_certification": "deferred",
+        "consent_screen_verification": "deferred",
+        "live_google_credentials": "deferred",
+        "migration_sha256": "b461ea4a36d677d2dbadb9e2e93b947e9e92219ade4dac207d58180a69bc519b",
+        "notarization": "deferred",
+        "packet_sha256": "567ae50d84bba3f909a6679712ffce618b935ecc5da5377f27178b4fe075307b",
+        "profile": "personal_mvp",
+        "source_sha256": "caf0ae17457f1ab7efb078592a93a2a0940c64ad58cf17ec500d2cdd23e3a67d"
+      },
+      "recorded_at": "2026-07-15T08:01:18+00:00",
+      "requirement_id": "P06-GML-001",
+      "sha256": "a7e3038a5a28270dc0d3fe080cdd27d6d0c45979c3f8d85d2334204d52fcdc57",
+      "status": "pass",
+      "test": "p06_connectors::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "clean_machine_certification": "deferred",
+        "consent_screen_verification": "deferred",
+        "live_google_credentials": "deferred",
+        "migration_sha256": "b461ea4a36d677d2dbadb9e2e93b947e9e92219ade4dac207d58180a69bc519b",
+        "notarization": "deferred",
+        "packet_sha256": "567ae50d84bba3f909a6679712ffce618b935ecc5da5377f27178b4fe075307b",
+        "profile": "personal_mvp",
+        "source_sha256": "caf0ae17457f1ab7efb078592a93a2a0940c64ad58cf17ec500d2cdd23e3a67d"
+      },
+      "recorded_at": "2026-07-15T08:01:18+00:00",
+      "requirement_id": "P06-GML-002",
+      "sha256": "52f2d2fa943fcbedfe8a8ec58c3747e5b452f30d5141a8c44317d8075f231bc5",
+      "status": "pass",
+      "test": "p06_connectors::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "clean_machine_certification": "deferred",
+        "consent_screen_verification": "deferred",
+        "live_google_credentials": "deferred",
+        "migration_sha256": "b461ea4a36d677d2dbadb9e2e93b947e9e92219ade4dac207d58180a69bc519b",
+        "notarization": "deferred",
+        "packet_sha256": "567ae50d84bba3f909a6679712ffce618b935ecc5da5377f27178b4fe075307b",
+        "profile": "personal_mvp",
+        "source_sha256": "caf0ae17457f1ab7efb078592a93a2a0940c64ad58cf17ec500d2cdd23e3a67d"
+      },
+      "recorded_at": "2026-07-15T08:01:18+00:00",
+      "requirement_id": "P06-AUT-001",
+      "sha256": "ab70257f59c3f964e25f4a525e74c251a7c167d4ab379c40d87a382aa9212e74",
+      "status": "pass",
+      "test": "p06_connectors::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "clean_machine_certification": "deferred",
+        "consent_screen_verification": "deferred",
+        "live_google_credentials": "deferred",
+        "migration_sha256": "b461ea4a36d677d2dbadb9e2e93b947e9e92219ade4dac207d58180a69bc519b",
+        "notarization": "deferred",
+        "packet_sha256": "567ae50d84bba3f909a6679712ffce618b935ecc5da5377f27178b4fe075307b",
+        "profile": "personal_mvp",
+        "source_sha256": "caf0ae17457f1ab7efb078592a93a2a0940c64ad58cf17ec500d2cdd23e3a67d"
+      },
+      "recorded_at": "2026-07-15T08:01:18+00:00",
+      "requirement_id": "P06-AUT-002",
+      "sha256": "adacdc97a1490fed01180e9a7baf14f3365d2e06c2404cf6b1bfa10ccecac5d5",
+      "status": "pass",
+      "test": "p06_connectors::focused_production_verification"
+    }
+  ],
+  "evidence_file_hashes": {
+    "P06-AUT-001.json": "ab70257f59c3f964e25f4a525e74c251a7c167d4ab379c40d87a382aa9212e74",
+    "P06-AUT-002.json": "adacdc97a1490fed01180e9a7baf14f3365d2e06c2404cf6b1bfa10ccecac5d5",
+    "P06-GML-001.json": "a7e3038a5a28270dc0d3fe080cdd27d6d0c45979c3f8d85d2334204d52fcdc57",
+    "P06-GML-002.json": "52f2d2fa943fcbedfe8a8ec58c3747e5b452f30d5141a8c44317d8075f231bc5",
+    "p06-connectors-diagnostics.json": "a597ab1d94abcff53facb1631c93ed6475544805448fbaa1dd340db671fb051c"
+  },
+  "phase": "P06",
+  "proposal_hash": "5d35d894bddea090445cf811cc0fc1461c77b6dba43cc883fb54a15639a71385",
+  "run_id": "20260715T064635Z-3004a19f",
+  "schema_version": 1,
+  "selected_requirement_ids": [
+    "P06-AUT-001",
+    "P06-AUT-002",
+    "P06-GML-001",
+    "P06-GML-002"
+  ],
+  "spec_hashes": {
+    "specs/phases/P06-connectors.md": "bf9c3e727015e0e1a9eb2f27655a8b263997d7f06cbf9e63753fe3cb42792f19",
+    "specs/system.md": "1cb32b71698c8accfafa34dab8c73eb47e047a49ccc6f2ac0b25734e1d8d1546"
+  }
+}

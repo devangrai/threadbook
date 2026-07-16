@@ -1,0 +1,107 @@
+{
+  "accepted_at": "2026-07-15T05:53:32+00:00",
+  "build_command": [
+    "make",
+    "build"
+  ],
+  "build_source_fingerprint": "195a614fecdd021e427079827b5299939a923f93c60b843a1c60c7e2db05f7c3",
+  "evaluate_command": [
+    "make",
+    "test"
+  ],
+  "evidence": [
+    {
+      "public_summary": {
+        "automatic_masks": "disabled",
+        "clean_machine_certification": "deferred",
+        "external_model_certification": "deferred",
+        "migration_sha256": "57476ec9cae78bafc1e1de22bfa86d6335cf777a520991be5f3ce9333df19476",
+        "notarization": "deferred",
+        "packet_sha256": "f68998162f430f3ea3e8fe3d9eb186b42e567519dfd3f3626e08e2d00f6cf6ac",
+        "profile": "personal_mvp",
+        "provider": "UnavailableGarmentSegmentationProviderV1",
+        "source_sha256": "7d25a3593d0f9852ee19cdf7ce0ffbbc8ff01da836d6361602f9b47395b2d0d1"
+      },
+      "recorded_at": "2026-07-15T05:52:20+00:00",
+      "requirement_id": "P04-SCP-001",
+      "sha256": "f2986d99aa179280e31970942dd986bbe94abd06d9b7324e814b26358646c632",
+      "status": "pass",
+      "test": "p04_photo_analysis::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "automatic_masks": "disabled",
+        "clean_machine_certification": "deferred",
+        "external_model_certification": "deferred",
+        "migration_sha256": "57476ec9cae78bafc1e1de22bfa86d6335cf777a520991be5f3ce9333df19476",
+        "notarization": "deferred",
+        "packet_sha256": "f68998162f430f3ea3e8fe3d9eb186b42e567519dfd3f3626e08e2d00f6cf6ac",
+        "profile": "personal_mvp",
+        "provider": "UnavailableGarmentSegmentationProviderV1",
+        "source_sha256": "7d25a3593d0f9852ee19cdf7ce0ffbbc8ff01da836d6361602f9b47395b2d0d1"
+      },
+      "recorded_at": "2026-07-15T05:52:20+00:00",
+      "requirement_id": "P04-SEG-001",
+      "sha256": "74481ed143f90860a753c82eb630ef977008f8530724e7763964a60a4be289ed",
+      "status": "pass",
+      "test": "p04_photo_analysis::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "automatic_masks": "disabled",
+        "clean_machine_certification": "deferred",
+        "external_model_certification": "deferred",
+        "migration_sha256": "57476ec9cae78bafc1e1de22bfa86d6335cf777a520991be5f3ce9333df19476",
+        "notarization": "deferred",
+        "packet_sha256": "f68998162f430f3ea3e8fe3d9eb186b42e567519dfd3f3626e08e2d00f6cf6ac",
+        "profile": "personal_mvp",
+        "provider": "UnavailableGarmentSegmentationProviderV1",
+        "source_sha256": "7d25a3593d0f9852ee19cdf7ce0ffbbc8ff01da836d6361602f9b47395b2d0d1"
+      },
+      "recorded_at": "2026-07-15T05:52:20+00:00",
+      "requirement_id": "P04-SEG-002",
+      "sha256": "4e35facb4950a95b796c9852b66c6720f99685aaa3b2a7247304673139f79c71",
+      "status": "pass",
+      "test": "p04_photo_analysis::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "automatic_masks": "disabled",
+        "clean_machine_certification": "deferred",
+        "external_model_certification": "deferred",
+        "migration_sha256": "57476ec9cae78bafc1e1de22bfa86d6335cf777a520991be5f3ce9333df19476",
+        "notarization": "deferred",
+        "packet_sha256": "f68998162f430f3ea3e8fe3d9eb186b42e567519dfd3f3626e08e2d00f6cf6ac",
+        "profile": "personal_mvp",
+        "provider": "UnavailableGarmentSegmentationProviderV1",
+        "source_sha256": "7d25a3593d0f9852ee19cdf7ce0ffbbc8ff01da836d6361602f9b47395b2d0d1"
+      },
+      "recorded_at": "2026-07-15T05:52:20+00:00",
+      "requirement_id": "P04-ART-001",
+      "sha256": "f72050c9ad7c4dc442a8c661db755a08b71e32e87aaf51e64291eb420f80645a",
+      "status": "pass",
+      "test": "p04_photo_analysis::focused_production_verification"
+    }
+  ],
+  "evidence_file_hashes": {
+    "P04-ART-001.json": "f72050c9ad7c4dc442a8c661db755a08b71e32e87aaf51e64291eb420f80645a",
+    "P04-SCP-001.json": "f2986d99aa179280e31970942dd986bbe94abd06d9b7324e814b26358646c632",
+    "P04-SEG-001.json": "74481ed143f90860a753c82eb630ef977008f8530724e7763964a60a4be289ed",
+    "P04-SEG-002.json": "4e35facb4950a95b796c9852b66c6720f99685aaa3b2a7247304673139f79c71",
+    "p04-photo-analysis-diagnostics.json": "436fab25042e08a3a8ba98783282d8b644e23d300203e962606fe3759debc6e7"
+  },
+  "phase": "P04",
+  "proposal_hash": "bf126b7fe0ec98eaa13c43b77251706f02f14000496ae524e0eab5e735a72164",
+  "run_id": "20260715T045533Z-a1466b2b",
+  "schema_version": 1,
+  "selected_requirement_ids": [
+    "P04-ART-001",
+    "P04-SCP-001",
+    "P04-SEG-001",
+    "P04-SEG-002"
+  ],
+  "spec_hashes": {
+    "specs/phases/P04-photo-analysis.md": "3fb58a5c42f5c15763d31fe629aafeaba58117b03550ad1742bc939db1d25390",
+    "specs/system.md": "1cb32b71698c8accfafa34dab8c73eb47e047a49ccc6f2ac0b25734e1d8d1546"
+  }
+}

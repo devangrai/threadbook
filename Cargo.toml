@@ -1,0 +1,12 @@
+[workspace]
+members = [
+    "crates/wardrobe-core",
+    "crates/wardrobe-platform",
+    "spikes/p00-durable-jobs",
+    "spikes/p00-gmail-sync",
+    "spikes/p00-openai-provider",
+    "spikes/p00-photokit-materialization",
+    "spikes/p00-segmentation",
+    "src-tauri",
+]
+resolver = "2"

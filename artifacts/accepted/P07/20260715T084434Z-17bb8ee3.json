@@ -1,0 +1,122 @@
+{
+  "accepted_at": "2026-07-15T09:48:30+00:00",
+  "build_command": [
+    "make",
+    "build"
+  ],
+  "build_source_fingerprint": "f3a8de5f510caa8bfdb2c558a51b527a4bdda1483123847d95f5899bdba79b97",
+  "evaluate_command": [
+    "make",
+    "test"
+  ],
+  "evidence": [
+    {
+      "public_summary": {
+        "acceptance_claim": "local_requirement_passed",
+        "deferred_limitation": "No approved live credentialed run made 500 real calls through the production OpenAI adapter on the frozen synthetic evaluation set.",
+        "feature_enabled": false,
+        "fixture_sha256": "479020c9abcf173d136e5dfe8e369bb32f9cc902523b6e5be8858e0ff4bcc317",
+        "live_credentials_available": false,
+        "production_adapter_calls": 0,
+        "profile": "personal_mvp",
+        "required_production_adapter_calls": 500
+      },
+      "recorded_at": "2026-07-15T09:46:30+00:00",
+      "requirement_id": "P07-TOL-001",
+      "sha256": "d1a4f25358bb787b757439ee4aa22b936b14657ffd87840b26e92fcb6a216422",
+      "status": "pass",
+      "test": "p07_recommendations::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "deferred_not_passed",
+        "deferred_limitation": "No approved live credentialed run made 500 real calls through the production OpenAI adapter on the frozen synthetic evaluation set.",
+        "feature_enabled": false,
+        "fixture_sha256": "479020c9abcf173d136e5dfe8e369bb32f9cc902523b6e5be8858e0ff4bcc317",
+        "live_credentials_available": false,
+        "production_adapter_calls": 0,
+        "profile": "personal_mvp",
+        "required_production_adapter_calls": 500
+      },
+      "recorded_at": "2026-07-15T09:46:30+00:00",
+      "requirement_id": "P07-AI-001",
+      "sha256": "1a79a3c56d4699b5ceccb2b85fc4c89d8f77901ee7e47cfbca40a04679a2304a",
+      "status": "deferred",
+      "test": "p07_recommendations::live_production_adapter_gate"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "local_requirement_passed",
+        "deferred_limitation": "No approved live credentialed run made 500 real calls through the production OpenAI adapter on the frozen synthetic evaluation set.",
+        "feature_enabled": false,
+        "fixture_sha256": "479020c9abcf173d136e5dfe8e369bb32f9cc902523b6e5be8858e0ff4bcc317",
+        "live_credentials_available": false,
+        "production_adapter_calls": 0,
+        "profile": "personal_mvp",
+        "required_production_adapter_calls": 500
+      },
+      "recorded_at": "2026-07-15T09:46:30+00:00",
+      "requirement_id": "P07-VAL-001",
+      "sha256": "b9844fb65db54b3cdadf811113189b81c27b63da0df0dda26532d55b262cf20e",
+      "status": "pass",
+      "test": "p07_recommendations::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "deferred_not_passed",
+        "deferred_limitation": "No approved live credentialed run made 500 real calls through the production OpenAI adapter on the frozen synthetic evaluation set.",
+        "feature_enabled": false,
+        "fixture_sha256": "479020c9abcf173d136e5dfe8e369bb32f9cc902523b6e5be8858e0ff4bcc317",
+        "live_credentials_available": false,
+        "production_adapter_calls": 0,
+        "profile": "personal_mvp",
+        "required_production_adapter_calls": 500
+      },
+      "recorded_at": "2026-07-15T09:46:30+00:00",
+      "requirement_id": "P07-GRD-001",
+      "sha256": "326aaddd462d31be8ce0f0adbcd5659d2fe6db8c88e8271a76acfd34d93b51c2",
+      "status": "deferred",
+      "test": "p07_recommendations::live_production_adapter_gate"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "deferred_not_passed",
+        "deferred_limitation": "No approved live credentialed run made 500 real calls through the production OpenAI adapter on the frozen synthetic evaluation set.",
+        "feature_enabled": false,
+        "fixture_sha256": "479020c9abcf173d136e5dfe8e369bb32f9cc902523b6e5be8858e0ff4bcc317",
+        "live_credentials_available": false,
+        "production_adapter_calls": 0,
+        "profile": "personal_mvp",
+        "required_production_adapter_calls": 500
+      },
+      "recorded_at": "2026-07-15T09:46:30+00:00",
+      "requirement_id": "P07-CNS-001",
+      "sha256": "e29d5582a27f7159f0cf1a8a3a984da853c57b4341b3077d0b87d8735274f357",
+      "status": "deferred",
+      "test": "p07_recommendations::live_production_adapter_gate"
+    }
+  ],
+  "evidence_file_hashes": {
+    "P07-AI-001.json": "1a79a3c56d4699b5ceccb2b85fc4c89d8f77901ee7e47cfbca40a04679a2304a",
+    "P07-CNS-001.json": "e29d5582a27f7159f0cf1a8a3a984da853c57b4341b3077d0b87d8735274f357",
+    "P07-GRD-001.json": "326aaddd462d31be8ce0f0adbcd5659d2fe6db8c88e8271a76acfd34d93b51c2",
+    "P07-TOL-001.json": "d1a4f25358bb787b757439ee4aa22b936b14657ffd87840b26e92fcb6a216422",
+    "P07-VAL-001.json": "b9844fb65db54b3cdadf811113189b81c27b63da0df0dda26532d55b262cf20e",
+    "p07-recommendations-diagnostics.json": "9b01784861aee4a3c4843e434dd08edfa87aa6e461ae5a237cbfc4c30752a4ae"
+  },
+  "phase": "P07",
+  "proposal_hash": "a7c7876e5cbe866937ec326b7fd807991f6d00dfdd9d385b042748b16753231f",
+  "run_id": "20260715T084434Z-17bb8ee3",
+  "schema_version": 1,
+  "selected_requirement_ids": [
+    "P07-AI-001",
+    "P07-CNS-001",
+    "P07-GRD-001",
+    "P07-TOL-001",
+    "P07-VAL-001"
+  ],
+  "spec_hashes": {
+    "specs/phases/P07-outfits.md": "4c48e8c17e7ec7041c0f04563a3f415375d9f1701600ea64d5c16d55fb0f11a8",
+    "specs/system.md": "1cb32b71698c8accfafa34dab8c73eb47e047a49ccc6f2ac0b25734e1d8d1546"
+  }
+}

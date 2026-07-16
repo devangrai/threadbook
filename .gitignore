@@ -4,12 +4,19 @@
 !.env.example
 
 target/
+native/photokit/.build/
 node_modules/
 dist/
 coverage/
+apps/desktop-ui/playwright-report/
+apps/desktop-ui/test-results/
 .pytest_cache/
 __pycache__/
 *.pyc
+*.tsbuildinfo
+apps/desktop-ui/vite.config.js
+apps/desktop-ui/vite.config.d.ts
+src-tauri/gen/
 
 # Product and private evaluation data
 data/

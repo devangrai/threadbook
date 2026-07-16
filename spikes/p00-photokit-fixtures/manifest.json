@@ -1,0 +1,27 @@
+{
+  "fixtures": [
+    {
+      "byte_count": 323,
+      "filename": "local.png",
+      "fixture_id": "p00-synthetic-local-v1",
+      "mime_type": "image/png",
+      "pixel_height": 96,
+      "pixel_width": 96,
+      "role": "local",
+      "sha256": "78b167d1451183a20b6ea88c3a4701d59335699aa2c947ead7282c31edff35a5"
+    },
+    {
+      "byte_count": 337,
+      "filename": "cloud.png",
+      "fixture_id": "p00-synthetic-cloud-v1",
+      "mime_type": "image/png",
+      "pixel_height": 96,
+      "pixel_width": 96,
+      "role": "cloud",
+      "sha256": "0a954174688fa3cf1fd32faa5601e6a7978b5fda3b90a470fac6fbce9686cf34"
+    }
+  ],
+  "generator_revision": "p00-photokit-fixtures-v1",
+  "nonpersonal_provenance": "dedicated_nonpersonal_synthetic_photos_library_v1",
+  "schema_version": 1
+}

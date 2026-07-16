@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-analyze-photo-scope-v1"
+description = "Enables the analyze_photo_scope_v1 command without any pre-configured scope."
+commands.allow = ["analyze_photo_scope_v1"]
+
+[[permission]]
+identifier = "deny-analyze-photo-scope-v1"
+description = "Denies the analyze_photo_scope_v1 command without any pre-configured scope."
+commands.deny = ["analyze_photo_scope_v1"]

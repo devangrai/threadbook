@@ -1,0 +1,152 @@
+{
+  "accepted_at": "2026-07-15T02:37:21+00:00",
+  "build_command": [
+    "make",
+    "build"
+  ],
+  "build_source_fingerprint": "8429c7bb03d500112436a254d43340cd23f64b6acf729b48dafe1ea9bd5ed732",
+  "evaluate_command": [
+    "make",
+    "test"
+  ],
+  "evidence": [
+    {
+      "public_summary": {
+        "hard_delete_available": false,
+        "importers": "folder,eml,mbox",
+        "parser_dependencies": "image=0.25.10,mail-parser=0.11.5",
+        "profile": "personal_mvp",
+        "verification": "focused production checks and phase smoke passed"
+      },
+      "recorded_at": "2026-07-15T02:37:21+00:00",
+      "requirement_id": "P02-IMP-001",
+      "sha256": "9648a6c1ba32e6e328fa8bd80d394ee01e2beb48a8587f044f81fbd9f093abe0",
+      "status": "pass",
+      "test": "p02_manual_catalog::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "hard_delete_available": false,
+        "importers": "folder,eml,mbox",
+        "parser_dependencies": "image=0.25.10,mail-parser=0.11.5",
+        "profile": "personal_mvp",
+        "verification": "focused production checks and phase smoke passed"
+      },
+      "recorded_at": "2026-07-15T02:37:21+00:00",
+      "requirement_id": "P02-IMP-002",
+      "sha256": "39403a0cbae61ab2153247de368bfcf88315fb9707b9687c7aad8a57f50208a0",
+      "status": "pass",
+      "test": "p02_manual_catalog::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "hard_delete_available": false,
+        "importers": "folder,eml,mbox",
+        "parser_dependencies": "image=0.25.10,mail-parser=0.11.5",
+        "profile": "personal_mvp",
+        "verification": "focused production checks and phase smoke passed"
+      },
+      "recorded_at": "2026-07-15T02:37:21+00:00",
+      "requirement_id": "P02-IMP-003",
+      "sha256": "5bcdcff02d8bd78d1ffa8c3317a7fd67631c2fac4d1acc2906c8df768b5b88f4",
+      "status": "pass",
+      "test": "p02_manual_catalog::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "decision_model": "append_only_cas_with_compensating_undo",
+        "hard_delete_available": false,
+        "profile": "personal_mvp",
+        "verification": "focused production checks and phase smoke passed"
+      },
+      "recorded_at": "2026-07-15T02:37:21+00:00",
+      "requirement_id": "P02-CAT-001",
+      "sha256": "910586fd7ff47689f3cb5a07f6c87cbad0708858eb67729878947ed4fcb3d2c8",
+      "status": "pass",
+      "test": "p02_manual_catalog::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "decision_model": "append_only_cas_with_compensating_undo",
+        "hard_delete_available": false,
+        "profile": "personal_mvp",
+        "verification": "focused production checks and phase smoke passed"
+      },
+      "recorded_at": "2026-07-15T02:37:21+00:00",
+      "requirement_id": "P02-CAT-002",
+      "sha256": "6a6c0ad9b6eac22c1d6d8dea4a77bced66f2ae4244d71019741f161dd85bc461",
+      "status": "pass",
+      "test": "p02_manual_catalog::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "browser_smoke": "desktop_mobile_axe",
+        "hard_delete_available": false,
+        "production_transport_isolated": true,
+        "profile": "personal_mvp",
+        "verification": "focused production checks and phase smoke passed"
+      },
+      "recorded_at": "2026-07-15T02:37:21+00:00",
+      "requirement_id": "P02-REV-001",
+      "sha256": "78a1ae08e5f736b4ebe44b80f1dbeb65742ae891d6c6db1894d6e7aa7483d6cd",
+      "status": "pass",
+      "test": "p02_manual_catalog::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "hard_delete_available": false,
+        "importers": "folder,eml,mbox",
+        "parser_dependencies": "image=0.25.10,mail-parser=0.11.5",
+        "profile": "personal_mvp",
+        "verification": "focused production checks and phase smoke passed"
+      },
+      "recorded_at": "2026-07-15T02:37:21+00:00",
+      "requirement_id": "P02-SAF-001",
+      "sha256": "97149523bdea413c91a848f8163034daf1ac5722a96f11df048f407219b45dce",
+      "status": "pass",
+      "test": "p02_manual_catalog::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "deletion_scope": "read_only_paged_preview",
+        "hard_delete_available": false,
+        "profile": "personal_mvp",
+        "verification": "focused production checks and phase smoke passed"
+      },
+      "recorded_at": "2026-07-15T02:37:21+00:00",
+      "requirement_id": "P02-DEL-001",
+      "sha256": "a0539bcb528276f06b0287ffe8ac3f2c0bb8f56417783151018022c15184bf4d",
+      "status": "pass",
+      "test": "p02_manual_catalog::focused_production_verification"
+    }
+  ],
+  "evidence_file_hashes": {
+    "P02-CAT-001.json": "910586fd7ff47689f3cb5a07f6c87cbad0708858eb67729878947ed4fcb3d2c8",
+    "P02-CAT-002.json": "6a6c0ad9b6eac22c1d6d8dea4a77bced66f2ae4244d71019741f161dd85bc461",
+    "P02-DEL-001.json": "a0539bcb528276f06b0287ffe8ac3f2c0bb8f56417783151018022c15184bf4d",
+    "P02-IMP-001.json": "9648a6c1ba32e6e328fa8bd80d394ee01e2beb48a8587f044f81fbd9f093abe0",
+    "P02-IMP-002.json": "39403a0cbae61ab2153247de368bfcf88315fb9707b9687c7aad8a57f50208a0",
+    "P02-IMP-003.json": "5bcdcff02d8bd78d1ffa8c3317a7fd67631c2fac4d1acc2906c8df768b5b88f4",
+    "P02-REV-001.json": "78a1ae08e5f736b4ebe44b80f1dbeb65742ae891d6c6db1894d6e7aa7483d6cd",
+    "P02-SAF-001.json": "97149523bdea413c91a848f8163034daf1ac5722a96f11df048f407219b45dce",
+    "p02-manual-catalog-diagnostics.json": "1ab79c385d5b8dce4f1dc18ccc19ea9471bef0d7017a3a11b3692f4604df9f83"
+  },
+  "phase": "P02",
+  "proposal_hash": "ea1f687d252f66222645d6df09655bd381fca33b30fce612bd8a3d963184547c",
+  "run_id": "20260715T014249Z-2bfa0a33",
+  "schema_version": 1,
+  "selected_requirement_ids": [
+    "P02-CAT-001",
+    "P02-CAT-002",
+    "P02-DEL-001",
+    "P02-IMP-001",
+    "P02-IMP-002",
+    "P02-IMP-003",
+    "P02-REV-001",
+    "P02-SAF-001"
+  ],
+  "spec_hashes": {
+    "specs/phases/P02-manual-catalog.md": "90eb259bbd71247572e73dc68b7d2cd7ce8ae47f3c9ae15d5f68f2014fb4d8ce",
+    "specs/system.md": "1cb32b71698c8accfafa34dab8c73eb47e047a49ccc6f2ac0b25734e1d8d1546"
+  }
+}

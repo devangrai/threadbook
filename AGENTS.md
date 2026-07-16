@@ -14,6 +14,24 @@ These rules apply to the entire repository.
 8. Evaluate the work packet. Do not call the phase complete unless evaluation
    passes.
 
+## Personal MVP delivery profile
+
+- Keep work packets minimal and limited to one usable vertical slice.
+- Use one independent review pass before implementation.
+- Add focused unit tests and one end-to-end smoke test for each phase.
+- Run the full repository regression suite at phase boundaries.
+- Prefer real local adapters and provider sandboxes over certification
+  infrastructure. Production paths must not depend on test mocks.
+- Record credentials, notarization, clean-machine certification, and
+  unavailable third-party models as explicit deferred limitations. A deferred
+  external capability does not block later phases when an accepted local
+  fallback preserves privacy, data integrity, deletion, and user authority.
+- Keep automatic or remote behavior disabled until its own requirement has
+  real evidence. Deferred capability must never be presented as passed.
+- Preserve strict guarantees for credentials, remote disclosure, atomic
+  writes, backups and migrations, dependency-aware deletion, idempotency, and
+  user-confirmed decisions.
+
 ## Architecture boundaries
 
 - Domain code must not depend on Tauri, SQLite, PhotoKit, OpenAI, or network

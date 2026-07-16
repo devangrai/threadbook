@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-read-photo-owner-preview-v1"
+description = "Enables the read_photo_owner_preview_v1 command without any pre-configured scope."
+commands.allow = ["read_photo_owner_preview_v1"]
+
+[[permission]]
+identifier = "deny-read-photo-owner-preview-v1"
+description = "Denies the read_photo_owner_preview_v1 command without any pre-configured scope."
+commands.deny = ["read_photo_owner_preview_v1"]

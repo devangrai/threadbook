@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "evaluation_revision": "p07-outfit-evaluation-v1",
+  "generator_revision": "p07-synthetic-wardrobe-generator-v1",
+  "all_cases_satisfiable": true,
+  "wardrobe_seeds": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+  "item_blueprint": [
+    {"slot": "top", "category": "top", "tags": []},
+    {"slot": "bottom", "category": "bottom", "tags": []},
+    {"slot": "dress", "category": "dress", "tags": []},
+    {
+      "slot": "weather_outerwear",
+      "category": "outerwear",
+      "tags": ["insulation:cold", "weather:rain", "weather:snow"]
+    },
+    {
+      "slot": "weather_shoes",
+      "category": "shoes",
+      "tags": ["weather:rain", "weather:snow"]
+    },
+    {"slot": "activewear", "category": "activewear", "tags": []},
+    {"slot": "light_shoes", "category": "shoes", "tags": []},
+    {"slot": "accessory", "category": "accessory", "tags": []}
+  ],
+  "prompt_templates": [
+    "Suggest one grounded outfit for these explicit constraints.",
+    "Choose only confirmed wardrobe items for this occasion.",
+    "Build a practical outfit without inventing any garments.",
+    "Give me one outfit using item IDs returned by the wardrobe tool.",
+    "Recommend a simple combination that respects every selected constraint.",
+    "Find a suitable outfit and explain the item choices briefly.",
+    "Use my confirmed catalog to assemble an outfit for this plan.",
+    "Pick a coherent outfit from what I own and nothing else.",
+    "Create a wearable combination while honoring weather and exclusions.",
+    "Return one concise, grounded outfit proposal."
+  ],
+  "constraint_variants": [
+    {
+      "occasion": "casual",
+      "temperature_c": 20,
+      "precipitation": "none",
+      "excluded_slots": ["dress", "activewear"]
+    },
+    {
+      "occasion": "date",
+      "temperature_c": 30,
+      "precipitation": "none",
+      "excluded_slots": ["weather_outerwear", "activewear"]
+    },
+    {
+      "occasion": "work",
+      "temperature_c": 15,
+      "precipitation": "rain",
+      "excluded_slots": ["dress", "activewear", "light_shoes"]
+    },
+    {
+      "occasion": "active",
+      "temperature_c": 18,
+      "precipitation": "none",
+      "excluded_slots": ["top", "bottom", "dress", "weather_shoes"]
+    },
+    {
+      "occasion": "formal",
+      "temperature_c": -5,
+      "precipitation": "snow",
+      "excluded_slots": ["top", "bottom", "activewear", "light_shoes"]
+    }
+  ],
+  "case_count": 500,
+  "grounding_gate": {
+    "maximum_accepted_invented_item_ids": 0
+  },
+  "constraint_gate": {
+    "minimum_successful_cases": 490,
+    "minimum_ratio": 0.98
+  }
+}

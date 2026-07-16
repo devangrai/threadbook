@@ -11,6 +11,8 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
+import stat
 import subprocess
 import sys
 from typing import Any
@@ -20,6 +22,9 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = ROOT / "specs/phases/manifest.json"
 SYSTEM_SPEC_PATH = ROOT / "specs/system.md"
 RUNS_PATH = ROOT / "artifacts/harness"
+ACCEPTED_PATH = ROOT / "artifacts/accepted"
+ATOMIC_EVIDENCE_DIRECTORY = "P09AcceptanceRouting"
+ATOMIC_EVIDENCE_TRIGGER_ID = "P09-ACC-001"
 
 REQUIREMENT_HEADING = re.compile(
     r"^### (?P<id>(?:SYS|P\d{2})-[A-Z][A-Z0-9]*-\d{3}): (?P<title>.+)$"
@@ -31,6 +36,24 @@ ALLOWED_TYPES = {
     "State-driven",
     "Optional",
     "Unwanted",
+}
+BUILDABLE_STATES = frozenset(
+    {
+        "APPROVED",
+        "BUILD_FAILED",
+        "BUILT",
+        "EVALUATED",
+        "EVALUATION_FAILED",
+    }
+)
+PUBLIC_SUMMARY_KEY = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+EVALUATOR_SIDECARS = {
+    "P04-OWN-001": Path("tools/evaluators/p04_people.py"),
+    "P04-PER-001": Path("tools/evaluators/p04_people.py"),
+    "P04-PERF-001": Path("tools/evaluators/p04_people.py"),
+    "P04-QLT-001": Path("tools/evaluators/p04_people.py"),
+    "P09-ACC-001": Path("tools/evaluators/p09_acceptance.py"),
+    "P09-OFF-001": Path("tools/evaluators/p09_offline.py"),
 }
 
 
@@ -85,7 +108,7 @@ def source_fingerprint() -> str:
     paths = sorted(
         Path(item.decode("utf-8"))
         for item in result.stdout.split(b"\0")
-        if item
+        if item and is_source_fingerprint_path(Path(item.decode("utf-8")))
     )
     digest = hashlib.sha256()
     for relative_path in paths:
@@ -96,6 +119,10 @@ def source_fingerprint() -> str:
         digest.update(b"\0")
         digest.update(bytes.fromhex(sha256_file(path)))
     return digest.hexdigest()
+
+
+def is_source_fingerprint_path(relative_path: Path) -> bool:
+    return relative_path.parts[:2] != ("artifacts", "accepted")
 
 
 def load_json(path: Path) -> Any:
@@ -586,17 +613,24 @@ Reviewed at: {reviewed_at}
 
 
 def execute_command(
-    command: list[str], path: Path, log_name: str
+    command: list[str],
+    path: Path,
+    log_name: str,
+    *,
+    include_phase_evidence: bool = True,
 ) -> subprocess.CompletedProcess[str]:
     environment = os.environ.copy()
-    environment.update(
-        {
-            "HARNESS_RUN_DIR": str(path),
-            "HARNESS_EVIDENCE_DIR": str(path / "evidence"),
-            "HARNESS_PHASE": path.parent.name,
-            "HARNESS_RUN_ID": path.name,
-        }
-    )
+    harness_environment = {
+        "HARNESS_RUN_DIR": str(path),
+        "HARNESS_EVIDENCE_DIR": str(path / "evidence"),
+        "HARNESS_PHASE": path.parent.name,
+        "HARNESS_RUN_ID": path.name,
+    }
+    if include_phase_evidence:
+        environment.update(harness_environment)
+    else:
+        for key in harness_environment:
+            environment.pop(key, None)
     result = subprocess.run(
         command,
         cwd=ROOT,
@@ -610,15 +644,260 @@ def execute_command(
     return result
 
 
+def evaluator_sidecars(selected_requirement_ids: list[str]) -> tuple[Path, ...]:
+    return tuple(
+        dict.fromkeys(
+            EVALUATOR_SIDECARS[requirement_id]
+            for requirement_id in selected_requirement_ids
+            if requirement_id in EVALUATOR_SIDECARS
+        )
+    )
+
+
+def accepted_manifest_path(path: Path) -> Path:
+    return ACCEPTED_PATH / path.parent.name / f"{path.name}.json"
+
+
+def clear_evidence_directory(evidence_dir: Path) -> None:
+    evidence_dir.mkdir(parents=True, exist_ok=True)
+    for entry in evidence_dir.iterdir():
+        if entry.is_dir() and not entry.is_symlink():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
+
+
+def clear_build_outputs(path: Path) -> None:
+    clear_evidence_directory(path / "evidence")
+    accepted_path = accepted_manifest_path(path)
+    if accepted_path.exists():
+        accepted_path.unlink()
+
+
+def requirement_evidence_path(evidence_dir: Path, requirement_id: str) -> Path:
+    direct = evidence_dir / f"{requirement_id}.json"
+    routing_directory = evidence_dir / ATOMIC_EVIDENCE_DIRECTORY
+    routed = routing_directory / f"{requirement_id}.json"
+    if direct.exists() and routed.exists():
+        raise HarnessError(
+            f"ambiguous evidence locations for {requirement_id}"
+        )
+    if routed.exists():
+        if routing_directory.is_symlink() or not routing_directory.is_dir():
+            raise HarnessError(
+                f"unsafe atomic evidence directory for {requirement_id}"
+            )
+        metadata = routed.lstat()
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+            raise HarnessError(
+                f"unsafe atomic evidence record for {requirement_id}"
+            )
+        return routed
+    if direct.exists():
+        metadata = direct.lstat()
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+            raise HarnessError(f"unsafe evidence record for {requirement_id}")
+    return direct
+
+
+def validate_atomic_evidence_directory(
+    evidence_dir: Path,
+    required_ids: set[str],
+) -> list[str]:
+    routing_directory = evidence_dir / ATOMIC_EVIDENCE_DIRECTORY
+    if not routing_directory.exists() and not routing_directory.is_symlink():
+        if ATOMIC_EVIDENCE_TRIGGER_ID in required_ids:
+            return ["atomic P09 acceptance evidence directory is missing"]
+        return []
+    if routing_directory.is_symlink() or not routing_directory.is_dir():
+        return ["atomic evidence directory is unsafe"]
+    expected = {
+        "p09-acceptance-evaluator.json",
+        *(f"{requirement_id}.json" for requirement_id in required_ids),
+    }
+    entries = list(routing_directory.iterdir())
+    names = {entry.name for entry in entries}
+    errors: list[str] = []
+    if names != expected:
+        errors.append("atomic evidence directory inventory is not exact")
+    for entry in entries:
+        try:
+            metadata = entry.lstat()
+        except OSError:
+            errors.append(f"atomic evidence entry is unreadable: {entry.name}")
+            continue
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_nlink != 1
+            or metadata.st_size > 256 * 1024
+        ):
+            errors.append(f"atomic evidence entry is unsafe: {entry.name}")
+    diagnostic_path = routing_directory / "p09-acceptance-evaluator.json"
+    if diagnostic_path.is_file() and not diagnostic_path.is_symlink():
+        try:
+            diagnostic = load_json(diagnostic_path)
+        except HarnessError as error:
+            errors.append(str(error))
+        else:
+            if (
+                diagnostic.get("schema_version") != 1
+                or diagnostic.get("status") != "pass"
+                or diagnostic.get("failures") != []
+            ):
+                errors.append(
+                    "atomic evidence diagnostic is not a passing commit"
+                )
+    else:
+        errors.append("atomic evidence passing diagnostic is missing")
+    return list(dict.fromkeys(errors))
+
+
+def evidence_hash_files(evidence_dir: Path) -> list[Path]:
+    files: list[Path] = []
+    for path in evidence_dir.iterdir():
+        if path.is_symlink():
+            raise HarnessError(f"unsafe evidence symlink: {path}")
+        if path.is_file():
+            metadata = path.lstat()
+            if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+                raise HarnessError(f"unsafe evidence file: {path}")
+            files.append(path)
+    routing_directory = evidence_dir / ATOMIC_EVIDENCE_DIRECTORY
+    if routing_directory.exists():
+        if routing_directory.is_symlink() or not routing_directory.is_dir():
+            raise HarnessError("atomic evidence directory is unsafe")
+        for path in routing_directory.iterdir():
+            metadata = path.lstat()
+            if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+                raise HarnessError(f"unsafe atomic evidence file: {path}")
+            files.append(path)
+    return sorted(files, key=lambda path: str(path.relative_to(evidence_dir)))
+
+
+def sanitize_public_summary(value: Any, *, context: str) -> dict[str, Any]:
+    if not isinstance(value, dict) or len(value) > 32:
+        raise HarnessError(f"{context}: public_summary must be an object of at most 32 fields")
+
+    sanitized: dict[str, Any] = {}
+    for key, item in value.items():
+        if not isinstance(key, str) or not PUBLIC_SUMMARY_KEY.fullmatch(key):
+            raise HarnessError(f"{context}: invalid public_summary key {key!r}")
+        if isinstance(item, str):
+            if not item or len(item) > 256 or "\n" in item:
+                raise HarnessError(f"{context}: invalid public_summary string for {key}")
+            sanitized[key] = item
+        elif isinstance(item, (bool, int, float)) and not isinstance(item, complex):
+            sanitized[key] = item
+        elif isinstance(item, list) and len(item) <= 32 and all(
+            isinstance(element, str)
+            and element
+            and len(element) <= 128
+            and "\n" not in element
+            for element in item
+        ):
+            sanitized[key] = list(item)
+        else:
+            raise HarnessError(
+                f"{context}: public_summary field {key} is not a bounded primitive"
+            )
+    return sanitized
+
+
+def acceptance_payload(
+    path: Path,
+    state: dict[str, Any],
+    snapshot: dict[str, Any],
+    evaluation: dict[str, Any],
+) -> dict[str, Any]:
+    required_ids = {
+        requirement["id"]
+        for requirement in snapshot["requirements"]
+        if requirement["evidence_required"]
+    }
+    atomic_errors = validate_atomic_evidence_directory(
+        path / "evidence",
+        required_ids,
+    )
+    if atomic_errors:
+        raise HarnessError("; ".join(atomic_errors))
+    evidence_records: list[dict[str, Any]] = []
+    for requirement in snapshot["requirements"]:
+        if not requirement["evidence_required"]:
+            continue
+        evidence_path = requirement_evidence_path(
+            path / "evidence",
+            requirement["id"],
+        )
+        evidence = load_json(evidence_path)
+        details = evidence.get("details")
+        public_summary = (
+            details.get("public_summary") if isinstance(details, dict) else None
+        )
+        if public_summary is None:
+            raise HarnessError(
+                f"{evidence_path}: required evidence has no public_summary"
+            )
+        evidence_records.append(
+            {
+                "requirement_id": requirement["id"],
+                "status": evidence["status"],
+                "test": evidence["test"],
+                "recorded_at": evidence["recorded_at"],
+                "sha256": sha256_file(evidence_path),
+                "public_summary": sanitize_public_summary(
+                    public_summary,
+                    context=str(evidence_path),
+                ),
+            }
+        )
+
+    evidence_hashes = {
+        str(evidence_path.relative_to(path / "evidence")): sha256_file(
+            evidence_path
+        )
+        for evidence_path in evidence_hash_files(path / "evidence")
+    }
+    return {
+        "schema_version": 1,
+        "phase": state["phase"],
+        "run_id": state["run_id"],
+        "accepted_at": evaluation["completed_at"],
+        "selected_requirement_ids": state["selected_requirement_ids"],
+        "build_source_fingerprint": state["build"]["source_fingerprint"],
+        "proposal_hash": state["review"]["proposal_hash"],
+        "spec_hashes": state["spec_hashes"],
+        "build_command": state["build_command"],
+        "evaluate_command": state["evaluate_command"],
+        "evidence": evidence_records,
+        "evidence_file_hashes": evidence_hashes,
+    }
+
+
+def publish_acceptance_manifest(
+    path: Path,
+    state: dict[str, Any],
+    snapshot: dict[str, Any],
+    evaluation: dict[str, Any],
+) -> Path:
+    destination = accepted_manifest_path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    write_json(
+        destination,
+        acceptance_payload(path, state, snapshot, evaluation),
+    )
+    return destination
+
+
 def command_build(args: argparse.Namespace) -> None:
     path = run_path(args.phase.upper(), args.run_id)
     state = load_state(path)
-    if state["status"] not in {"APPROVED", "BUILD_FAILED"}:
+    if state["status"] not in BUILDABLE_STATES:
         raise HarnessError(
-            f"Build requires APPROVED or BUILD_FAILED state, found {state['status']}"
+            f"Build requires an approved buildable state, found {state['status']}"
         )
     verify_spec_snapshot(path, state)
     verify_approved_proposal(path, state)
+    clear_build_outputs(path)
     result = execute_command(state["build_command"], path, "build.log")
     state["build"] = {
         "command": state["build_command"],
@@ -638,11 +917,26 @@ def validate_evidence(
 ) -> list[str]:
     errors: list[str] = []
     evidence_dir = path / "evidence"
+    required_ids = {
+        requirement["id"]
+        for requirement in requirements
+        if requirement["evidence_required"]
+    }
+    errors.extend(
+        validate_atomic_evidence_directory(evidence_dir, required_ids)
+    )
     for requirement in requirements:
         if not requirement["evidence_required"]:
             continue
         requirement_id = requirement["id"]
-        evidence_path = evidence_dir / f"{requirement_id}.json"
+        try:
+            evidence_path = requirement_evidence_path(
+                evidence_dir,
+                requirement_id,
+            )
+        except HarnessError as error:
+            errors.append(str(error))
+            continue
         if not evidence_path.is_file():
             errors.append(f"missing evidence for {requirement_id}")
             continue
@@ -653,8 +947,27 @@ def validate_evidence(
             continue
         if evidence.get("requirement_id") != requirement_id:
             errors.append(f"{evidence_path}: requirement_id mismatch")
-        if evidence.get("status") != "pass":
-            errors.append(f"{evidence_path}: status must be pass")
+        status = evidence.get("status")
+        if status not in {"pass", "deferred"}:
+            errors.append(f"{evidence_path}: status must be pass or deferred")
+        if status == "deferred":
+            details = evidence.get("details")
+            summary = (
+                details.get("public_summary")
+                if isinstance(details, dict)
+                else None
+            )
+            if (
+                not isinstance(summary, dict)
+                or summary.get("feature_enabled") is not False
+                or summary.get("acceptance_claim") != "deferred_not_passed"
+                or not isinstance(summary.get("deferred_limitation"), str)
+                or not summary["deferred_limitation"]
+            ):
+                errors.append(
+                    f"{evidence_path}: deferred evidence must disable the "
+                    "feature and state deferred_not_passed"
+                )
         for field in ("test", "recorded_at"):
             if not isinstance(evidence.get(field), str) or not evidence[field]:
                 errors.append(f"{evidence_path}: missing {field}")
@@ -676,22 +989,77 @@ def command_evaluate(args: argparse.Namespace) -> None:
         raise HarnessError(
             "Repository source changed after build; rebuild before evaluation"
         )
-    result = execute_command(state["evaluate_command"], path, "evaluation.log")
+    snapshot = load_json(path / "requirements.json")
+    sidecars = evaluator_sidecars(snapshot["selected_requirement_ids"])
+    result = execute_command(
+        state["evaluate_command"],
+        path,
+        "evaluation.log",
+        include_phase_evidence=not sidecars,
+    )
+    sidecar_results: list[dict[str, Any]] = []
+    if result.returncode == 0:
+        for sidecar in sidecars:
+            sidecar_result = execute_command(
+                [sys.executable, str(ROOT / sidecar)],
+                path,
+                f"evaluation-{sidecar.stem}.log",
+            )
+            sidecar_results.append(
+                {
+                    "command": [sys.executable, str(sidecar)],
+                    "exit_code": sidecar_result.returncode,
+                }
+            )
+            if sidecar_result.returncode != 0:
+                break
+    evaluation_exit_code = max(
+        [result.returncode, *(item["exit_code"] for item in sidecar_results)]
+    )
     source_changed_during_evaluation = (
         source_fingerprint() != expected_fingerprint
     )
-    snapshot = load_json(path / "requirements.json")
     evidence_errors = validate_evidence(path, snapshot["requirements"])
     if source_changed_during_evaluation:
         evidence_errors.append("repository source changed during evaluation")
     evaluation = {
         "command": state["evaluate_command"],
-        "exit_code": result.returncode,
+        "exit_code": evaluation_exit_code,
+        "sidecars": sidecar_results,
         "evidence_errors": evidence_errors,
         "completed_at": utc_now(),
+        "deferred_requirement_ids": [
+            requirement["id"]
+            for requirement in snapshot["requirements"]
+            if requirement["evidence_required"]
+            and (
+                load_json(
+                    requirement_evidence_path(
+                        path / "evidence",
+                        requirement["id"],
+                    )
+                ).get("status")
+                == "deferred"
+            )
+        ]
+        if not evidence_errors
+        else [],
     }
+    if evaluation_exit_code == 0 and not evidence_errors:
+        try:
+            accepted_path = publish_acceptance_manifest(
+                path,
+                state,
+                snapshot,
+                evaluation,
+            )
+            evaluation["accepted_manifest"] = str(
+                accepted_path.relative_to(ROOT)
+            )
+        except HarnessError as error:
+            evidence_errors.append(str(error))
     write_json(path / "evaluation.json", evaluation)
-    passed = result.returncode == 0 and not evidence_errors
+    passed = evaluation_exit_code == 0 and not evidence_errors
     state["evaluation"] = evaluation
     state["status"] = "EVALUATED" if passed else "EVALUATION_FAILED"
     save_state(path, state)

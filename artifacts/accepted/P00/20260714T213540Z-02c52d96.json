@@ -1,0 +1,46 @@
+{
+  "accepted_at": "2026-07-14T22:08:06+00:00",
+  "build_command": [
+    "make",
+    "build"
+  ],
+  "build_source_fingerprint": "efdadb56d47c581e78f259765192194523b07ab7570b84f3a69d4ab66a8ef401",
+  "evaluate_command": [
+    "make",
+    "test"
+  ],
+  "evidence": [
+    {
+      "public_summary": {
+        "crash_scenarios": 4,
+        "database": "sqlite",
+        "exactly_once_scope": "sqlite-local-committed-effects",
+        "fencing": true,
+        "journal_mode": "wal",
+        "process_tree_cleanup": true,
+        "recovery_process": "sigkill",
+        "synchronous": "full"
+      },
+      "recorded_at": "2026-07-14T22:08:06+00:00",
+      "requirement_id": "P00-JOB-001",
+      "sha256": "1d5e601d8c9583916a1bfbc88f38a28b04e80eedab7f810f80691e3a81ffbb06",
+      "status": "pass",
+      "test": "tools.evaluators.p00_jobs.evaluate"
+    }
+  ],
+  "evidence_file_hashes": {
+    "P00-JOB-001.json": "1d5e601d8c9583916a1bfbc88f38a28b04e80eedab7f810f80691e3a81ffbb06",
+    "p00-job-diagnostics.json": "2ca0db970c2de64c76077f9357e7059a9ef7c9dd25b316617cae0efba704450c"
+  },
+  "phase": "P00",
+  "proposal_hash": "04954caaec736efd9c40665e0580c1f281c7671d31078eb190009e28571ff7ce",
+  "run_id": "20260714T213540Z-02c52d96",
+  "schema_version": 1,
+  "selected_requirement_ids": [
+    "P00-JOB-001"
+  ],
+  "spec_hashes": {
+    "specs/phases/P00-feasibility.md": "c7dff465a81cfbf9b67efe2e4a4f9a9e9d17d3b7826cdebe63c7bf605cdf8907",
+    "specs/system.md": "1cb32b71698c8accfafa34dab8c73eb47e047a49ccc6f2ac0b25734e1d8d1546"
+  }
+}

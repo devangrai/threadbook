@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-undo-decision-v1"
+description = "Enables the undo_decision_v1 command without any pre-configured scope."
+commands.allow = ["undo_decision_v1"]
+
+[[permission]]
+identifier = "deny-undo-decision-v1"
+description = "Denies the undo_decision_v1 command without any pre-configured scope."
+commands.deny = ["undo_decision_v1"]

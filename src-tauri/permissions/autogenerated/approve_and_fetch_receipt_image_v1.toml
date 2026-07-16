@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-approve-and-fetch-receipt-image-v1"
+description = "Enables the approve_and_fetch_receipt_image_v1 command without any pre-configured scope."
+commands.allow = ["approve_and_fetch_receipt_image_v1"]
+
+[[permission]]
+identifier = "deny-approve-and-fetch-receipt-image-v1"
+description = "Denies the approve_and_fetch_receipt_image_v1 command without any pre-configured scope."
+commands.deny = ["approve_and_fetch_receipt_image_v1"]

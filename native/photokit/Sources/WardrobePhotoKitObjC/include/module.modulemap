@@ -1,0 +1,5 @@
+module WardrobePhotoKitObjC {
+  umbrella header "WKPhotoKitExceptionBarrier.h"
+  header "wardrobe_photokit.h"
+  export *
+}

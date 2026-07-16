@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-prompt-photo-observation-v1"
+description = "Enables the prompt_photo_observation_v1 command without any pre-configured scope."
+commands.allow = ["prompt_photo_observation_v1"]
+
+[[permission]]
+identifier = "deny-prompt-photo-observation-v1"
+description = "Denies the prompt_photo_observation_v1 command without any pre-configured scope."
+commands.deny = ["prompt_photo_observation_v1"]

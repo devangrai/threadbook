@@ -1,0 +1,19 @@
+{
+  "name": "wardrobe",
+  "version": "0.1.0",
+  "license": "UNLICENSED",
+  "private": true,
+  "workspaces": [
+    "apps/desktop-ui"
+  ],
+  "scripts": {
+    "supply-chain:generate": "python3 tools/release_supply_chain.py generate",
+    "supply-chain:check": "python3 tools/release_supply_chain.py check",
+    "supply-chain:check-installed": "python3 tools/release_supply_chain.py check-installed",
+    "desktop:build": "make production-bundle",
+    "desktop:dev": "tauri dev --config src-tauri/tauri.conf.json"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}

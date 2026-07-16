@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-disconnect-gmail-v1"
+description = "Enables the disconnect_gmail_v1 command without any pre-configured scope."
+commands.allow = ["disconnect_gmail_v1"]
+
+[[permission]]
+identifier = "deny-disconnect-gmail-v1"
+description = "Denies the disconnect_gmail_v1 command without any pre-configured scope."
+commands.deny = ["disconnect_gmail_v1"]

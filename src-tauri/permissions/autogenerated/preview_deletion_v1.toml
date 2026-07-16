@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-preview-deletion-v1"
+description = "Enables the preview_deletion_v1 command without any pre-configured scope."
+commands.allow = ["preview_deletion_v1"]
+
+[[permission]]
+identifier = "deny-preview-deletion-v1"
+description = "Denies the preview_deletion_v1 command without any pre-configured scope."
+commands.deny = ["preview_deletion_v1"]

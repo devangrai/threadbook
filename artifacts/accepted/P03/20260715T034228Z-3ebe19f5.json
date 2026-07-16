@@ -1,0 +1,47 @@
+{
+  "accepted_at": "2026-07-15T04:54:56+00:00",
+  "build_command": [
+    "make",
+    "build"
+  ],
+  "build_source_fingerprint": "462d4d56c19c482f4a83a01608864e8adf6f3b1e7295d7a61ebf737e9ee7aa1a",
+  "evaluate_command": [
+    "make",
+    "test"
+  ],
+  "evidence": [
+    {
+      "public_summary": {
+        "clean_machine_certification": "deferred",
+        "external_internet_certification": "deferred",
+        "migration_sha256": "57155c49b43ae2516d2a10dde296a4a020889ed824abaefa5dddc545f27dfa2c",
+        "network_policy": "https_same_host_pinned_public_addresses",
+        "production_downloader_wired": true,
+        "production_transport_isolated": true,
+        "profile": "personal_mvp",
+        "source_sha256": "9669fc30de37cb6ff886861181a4783e3c413447454e5af56b0befa65e432392",
+        "verification": "focused receipt-image production checks passed"
+      },
+      "recorded_at": "2026-07-15T04:54:55+00:00",
+      "requirement_id": "P03-IMG-001",
+      "sha256": "02e6b4cdfaebe48df9a125896b00441e38cf95663396a1c0fd32cdaf00142d0a",
+      "status": "pass",
+      "test": "p03_receipt_images::focused_production_verification"
+    }
+  ],
+  "evidence_file_hashes": {
+    "P03-IMG-001.json": "02e6b4cdfaebe48df9a125896b00441e38cf95663396a1c0fd32cdaf00142d0a",
+    "p03-receipt-images-diagnostics.json": "c5229e2ebcaea79ce9808a329361f1c7089e0b0a121a0511ad5d655c0c9c29a0"
+  },
+  "phase": "P03",
+  "proposal_hash": "4b7de39447d474fd6c6f3f6f3daf0a8dda2167204673a4bb425fa2a1adc0bbec",
+  "run_id": "20260715T034228Z-3ebe19f5",
+  "schema_version": 1,
+  "selected_requirement_ids": [
+    "P03-IMG-001"
+  ],
+  "spec_hashes": {
+    "specs/phases/P03-receipts.md": "a3d7f65269342f6f33691115d5f56ee7704a6bb1e948eebf2473cb0678d138b2",
+    "specs/system.md": "1cb32b71698c8accfafa34dab8c73eb47e047a49ccc6f2ac0b25734e1d8d1546"
+  }
+}

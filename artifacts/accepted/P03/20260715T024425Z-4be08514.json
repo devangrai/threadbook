@@ -1,0 +1,184 @@
+{
+  "accepted_at": "2026-07-15T03:42:18+00:00",
+  "build_command": [
+    "make",
+    "build"
+  ],
+  "build_source_fingerprint": "f1c50d2a01e31fb5bfba174e041fdc6af51a107e00f15c4dae44ab5769571321",
+  "evaluate_command": [
+    "make",
+    "test"
+  ],
+  "evidence": [
+    {
+      "public_summary": {
+        "citation_failures": 0,
+        "corpus_revision": "2026-07-15.1",
+        "corpus_sha256": "a13dc0d6a28308ab01232b800f23a77119479cde4fe9db44f05a3102a69a5cac",
+        "gold_lines": 48,
+        "item_recall": 1.0,
+        "matched_lines": 48,
+        "message_count": 24,
+        "minimum_item_recall": 0.95,
+        "parser_revision": "mail-parser-0.11.5/receipt-parser-v1",
+        "profile": "personal_mvp",
+        "provider_id": "local-deterministic-receipt-provider",
+        "provider_revision": "local-deterministic-receipt-provider-v1",
+        "sanitizer_revision": "html5ever-0.38/receipt-sanitizer-v1",
+        "spurious_lines": 0,
+        "unsupported_field_failures": 0,
+        "verification": "focused receipt-only production checks passed"
+      },
+      "recorded_at": "2026-07-15T03:41:41+00:00",
+      "requirement_id": "P03-MIM-001",
+      "sha256": "cee8d7b837db0f8b887199a9699753014e9d334d54891688b5bcbce077bb53cf",
+      "status": "pass",
+      "test": "p03_receipts::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "citation_failures": 0,
+        "corpus_revision": "2026-07-15.1",
+        "corpus_sha256": "a13dc0d6a28308ab01232b800f23a77119479cde4fe9db44f05a3102a69a5cac",
+        "gold_lines": 48,
+        "identity_model": "order_line_variant_catalog_separate",
+        "item_recall": 1.0,
+        "matched_lines": 48,
+        "message_count": 24,
+        "minimum_item_recall": 0.95,
+        "profile": "personal_mvp",
+        "provider_id": "local-deterministic-receipt-provider",
+        "provider_revision": "local-deterministic-receipt-provider-v1",
+        "spurious_lines": 0,
+        "unsupported_field_failures": 0,
+        "verification": "focused receipt-only production checks passed"
+      },
+      "recorded_at": "2026-07-15T03:41:41+00:00",
+      "requirement_id": "P03-ORD-001",
+      "sha256": "23b16bc5e7b1d1bd70fe41b91b15ec06f594575a095e5bbeabe812c58154e284",
+      "status": "pass",
+      "test": "p03_receipts::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "citation_failures": 0,
+        "corpus_revision": "2026-07-15.1",
+        "corpus_sha256": "a13dc0d6a28308ab01232b800f23a77119479cde4fe9db44f05a3102a69a5cac",
+        "gold_lines": 48,
+        "item_recall": 1.0,
+        "matched_lines": 48,
+        "message_count": 24,
+        "minimum_item_recall": 0.95,
+        "profile": "personal_mvp",
+        "provider_id": "local-deterministic-receipt-provider",
+        "provider_revision": "local-deterministic-receipt-provider-v1",
+        "ruleset_revision": "explicit-receipt-evidence-rules-v1",
+        "schema_revision": "receipt-extraction-v1",
+        "spurious_lines": 0,
+        "unsupported_field_failures": 0,
+        "verification": "focused receipt-only production checks passed"
+      },
+      "recorded_at": "2026-07-15T03:41:41+00:00",
+      "requirement_id": "P03-AI-001",
+      "sha256": "5b0d1871fca329ee19e709f5a8e189cd3359766dd3240202dcde11a35aa99378",
+      "status": "pass",
+      "test": "p03_receipts::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "citation_failures": 0,
+        "corpus_revision": "2026-07-15.1",
+        "corpus_sha256": "a13dc0d6a28308ab01232b800f23a77119479cde4fe9db44f05a3102a69a5cac",
+        "gold_lines": 48,
+        "item_recall": 1.0,
+        "matched_lines": 48,
+        "message_count": 24,
+        "minimum_item_recall": 0.95,
+        "profile": "personal_mvp",
+        "provider_id": "local-deterministic-receipt-provider",
+        "provider_revision": "local-deterministic-receipt-provider-v1",
+        "spurious_lines": 0,
+        "unsupported_field_failures": 0,
+        "verification": "focused receipt-only production checks passed"
+      },
+      "recorded_at": "2026-07-15T03:41:41+00:00",
+      "requirement_id": "P03-AI-002",
+      "sha256": "84daac776d1f75cdb2fddce5da22bc6ddabe06bc470b546edf1aa92d4ae62b69",
+      "status": "pass",
+      "test": "p03_receipts::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "citation_failures": 0,
+        "corpus_revision": "2026-07-15.1",
+        "corpus_sha256": "a13dc0d6a28308ab01232b800f23a77119479cde4fe9db44f05a3102a69a5cac",
+        "gold_lines": 48,
+        "item_recall": 1.0,
+        "matched_lines": 48,
+        "message_count": 24,
+        "minimum_item_recall": 0.95,
+        "production_network_free": true,
+        "profile": "personal_mvp",
+        "provider_id": "local-deterministic-receipt-provider",
+        "provider_revision": "local-deterministic-receipt-provider-v1",
+        "remote_image_retrieval": "deferred/not_claimed",
+        "spurious_lines": 0,
+        "unsupported_field_failures": 0,
+        "verification": "focused receipt-only production checks passed"
+      },
+      "recorded_at": "2026-07-15T03:41:41+00:00",
+      "requirement_id": "P03-SAF-001",
+      "sha256": "7ee3a2b11b75bcae08e79b6c49e789ce0207a7938c228891537f410ab8edfe90",
+      "status": "pass",
+      "test": "p03_receipts::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "citation_failures": 0,
+        "corpus_revision": "2026-07-15.1",
+        "corpus_sha256": "a13dc0d6a28308ab01232b800f23a77119479cde4fe9db44f05a3102a69a5cac",
+        "gold_lines": 48,
+        "item_recall": 1.0,
+        "matched_lines": 48,
+        "message_count": 24,
+        "minimum_item_recall": 0.95,
+        "profile": "personal_mvp",
+        "provider_id": "local-deterministic-receipt-provider",
+        "provider_revision": "local-deterministic-receipt-provider-v1",
+        "spurious_lines": 0,
+        "unsupported_field_failures": 0,
+        "verification": "focused receipt-only production checks passed"
+      },
+      "recorded_at": "2026-07-15T03:41:41+00:00",
+      "requirement_id": "P03-QLT-001",
+      "sha256": "8eff812faf5967d8ee2e3a632ebb232a8f9666b337b9f7aa7e1c0ad4af6c9cb4",
+      "status": "pass",
+      "test": "p03_receipts::focused_production_verification"
+    }
+  ],
+  "evidence_file_hashes": {
+    "P03-AI-001.json": "5b0d1871fca329ee19e709f5a8e189cd3359766dd3240202dcde11a35aa99378",
+    "P03-AI-002.json": "84daac776d1f75cdb2fddce5da22bc6ddabe06bc470b546edf1aa92d4ae62b69",
+    "P03-MIM-001.json": "cee8d7b837db0f8b887199a9699753014e9d334d54891688b5bcbce077bb53cf",
+    "P03-ORD-001.json": "23b16bc5e7b1d1bd70fe41b91b15ec06f594575a095e5bbeabe812c58154e284",
+    "P03-QLT-001.json": "8eff812faf5967d8ee2e3a632ebb232a8f9666b337b9f7aa7e1c0ad4af6c9cb4",
+    "P03-SAF-001.json": "7ee3a2b11b75bcae08e79b6c49e789ce0207a7938c228891537f410ab8edfe90",
+    "p03-receipts-diagnostics.json": "d3f46ed1e03c6a04035dbe6a302f157f9ba5d38ec53e40a7f7451607c912db4b"
+  },
+  "phase": "P03",
+  "proposal_hash": "3e996b0aa1e7d57a421724cdfd41abbf56a7c24ae6f537ae3bb4b9e34283fe3c",
+  "run_id": "20260715T024425Z-4be08514",
+  "schema_version": 1,
+  "selected_requirement_ids": [
+    "P03-AI-001",
+    "P03-AI-002",
+    "P03-MIM-001",
+    "P03-ORD-001",
+    "P03-QLT-001",
+    "P03-SAF-001"
+  ],
+  "spec_hashes": {
+    "specs/phases/P03-receipts.md": "a3d7f65269342f6f33691115d5f56ee7704a6bb1e948eebf2473cb0678d138b2",
+    "specs/system.md": "1cb32b71698c8accfafa34dab8c73eb47e047a49ccc6f2ac0b25734e1d8d1546"
+  }
+}

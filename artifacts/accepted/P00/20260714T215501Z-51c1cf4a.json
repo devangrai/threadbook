@@ -1,0 +1,61 @@
+{
+  "accepted_at": "2026-07-14T22:37:02+00:00",
+  "build_command": [
+    "make",
+    "build"
+  ],
+  "build_source_fingerprint": "664a7bbd15578c08b5a253f464e8a4b05e560fea18511a34c0d446ecd67ce300",
+  "evaluate_command": [
+    "make",
+    "test"
+  ],
+  "evidence": [
+    {
+      "public_summary": {
+        "bound_cases": 4,
+        "bounded_reconciliation": true,
+        "database": "sqlite",
+        "diagnostic_sentinel_leaks": 0,
+        "diagnostic_sentinels_scanned": 11,
+        "duplicate_revisions": 0,
+        "duplicate_source_records": 0,
+        "exclusive_history_anchor": true,
+        "expired_cursor_pages": 2,
+        "expired_cursor_revision_count": 3,
+        "expired_cursor_source_count": 3,
+        "expired_cursor_unique_messages": 3,
+        "explicit_deletion_observed": true,
+        "incomplete_state_preserved": true,
+        "interruption_atomic": true,
+        "invalid_cursor_history_calls": 1,
+        "malformed_cursor_history_calls": 0,
+        "non_cursor_failure_cases": 7,
+        "non_cursor_fallbacks": 0,
+        "reconciliation_fallbacks": 3,
+        "replayed_effects": 3,
+        "scenario_count": 9,
+        "stable_identity_reappeared": true
+      },
+      "recorded_at": "2026-07-14T22:37:02+00:00",
+      "requirement_id": "P00-GML-001",
+      "sha256": "a7f8d11fadfb9d6648e0dcd267faad2a7d1c912b4d009d1dcf8bee3e5cfe0545",
+      "status": "pass",
+      "test": "tools.evaluators.p00_gmail.evaluate"
+    }
+  ],
+  "evidence_file_hashes": {
+    "P00-GML-001.json": "a7f8d11fadfb9d6648e0dcd267faad2a7d1c912b4d009d1dcf8bee3e5cfe0545",
+    "p00-gmail-diagnostics.json": "dd36ff70ca93a3a4ad0af9575bb08f6deac44e40373becefcf90a174023c9cc9"
+  },
+  "phase": "P00",
+  "proposal_hash": "b849dec26486a2eee4403bc6171bfd72b4351df3d6a7158a52c54d30c717945a",
+  "run_id": "20260714T215501Z-51c1cf4a",
+  "schema_version": 1,
+  "selected_requirement_ids": [
+    "P00-GML-001"
+  ],
+  "spec_hashes": {
+    "specs/phases/P00-feasibility.md": "c7dff465a81cfbf9b67efe2e4a4f9a9e9d17d3b7826cdebe63c7bf605cdf8907",
+    "specs/system.md": "1cb32b71698c8accfafa34dab8c73eb47e047a49ccc6f2ac0b25734e1d8d1546"
+  }
+}

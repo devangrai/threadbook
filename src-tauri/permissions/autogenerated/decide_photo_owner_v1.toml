@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-decide-photo-owner-v1"
+description = "Enables the decide_photo_owner_v1 command without any pre-configured scope."
+commands.allow = ["decide_photo_owner_v1"]
+
+[[permission]]
+identifier = "deny-decide-photo-owner-v1"
+description = "Denies the decide_photo_owner_v1 command without any pre-configured scope."
+commands.deny = ["decide_photo_owner_v1"]

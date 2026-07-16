@@ -1,0 +1,65 @@
+{
+  "accepted_at": "2026-07-15T08:42:11+00:00",
+  "build_command": [
+    "make",
+    "build"
+  ],
+  "build_source_fingerprint": "8b0ea1fd38b167b90cc0eba3da5adb3afa3e9c54808e7077dc2f0f8151c7c53b",
+  "evaluate_command": [
+    "make",
+    "test"
+  ],
+  "evidence": [
+    {
+      "public_summary": {
+        "clean_machine_certification": "deferred",
+        "live_external_credentials": "not_required",
+        "migration_sha256": "7063d5f669cba12afe488c72d302746e746a2aad6e22d74fcaa759eac19e826b",
+        "notarization": "deferred",
+        "packet_sha256": "df80e9b8096fd152f168b5d0eee771a7d621335903fd2eed05f3da9aa09cef2d",
+        "profile": "personal_mvp",
+        "reasoning_provider": "not_used",
+        "source_sha256": "8e0b227a7e9c8da679621fa900ac9e7d848f330dd9f010ed1676e49a29eb190c"
+      },
+      "recorded_at": "2026-07-15T08:42:11+00:00",
+      "requirement_id": "P07-COL-001",
+      "sha256": "5ee702f91241b693e6350e606d79761a26b73fdddc0afc01e4dc87b1bfd36eb8",
+      "status": "pass",
+      "test": "p07_outfits::focused_production_verification"
+    },
+    {
+      "public_summary": {
+        "clean_machine_certification": "deferred",
+        "live_external_credentials": "not_required",
+        "migration_sha256": "7063d5f669cba12afe488c72d302746e746a2aad6e22d74fcaa759eac19e826b",
+        "notarization": "deferred",
+        "packet_sha256": "df80e9b8096fd152f168b5d0eee771a7d621335903fd2eed05f3da9aa09cef2d",
+        "profile": "personal_mvp",
+        "reasoning_provider": "not_used",
+        "source_sha256": "8e0b227a7e9c8da679621fa900ac9e7d848f330dd9f010ed1676e49a29eb190c"
+      },
+      "recorded_at": "2026-07-15T08:42:11+00:00",
+      "requirement_id": "P07-OFF-001",
+      "sha256": "0265e0188d5067f6211101b2b894142b9540ac1e41e902d062e30db3d21b9352",
+      "status": "pass",
+      "test": "p07_outfits::focused_production_verification"
+    }
+  ],
+  "evidence_file_hashes": {
+    "P07-COL-001.json": "5ee702f91241b693e6350e606d79761a26b73fdddc0afc01e4dc87b1bfd36eb8",
+    "P07-OFF-001.json": "0265e0188d5067f6211101b2b894142b9540ac1e41e902d062e30db3d21b9352",
+    "p07-outfits-diagnostics.json": "38d7b21ef3d9c1b3045cfd3a90e9fd338258985107ed090a5999fba15459fe09"
+  },
+  "phase": "P07",
+  "proposal_hash": "e58bb10b11e1d4f6278955a272adea1d7cc9aed0790fe97d2afd4837651a3e0e",
+  "run_id": "20260715T080623Z-0aacabda",
+  "schema_version": 1,
+  "selected_requirement_ids": [
+    "P07-COL-001",
+    "P07-OFF-001"
+  ],
+  "spec_hashes": {
+    "specs/phases/P07-outfits.md": "4c48e8c17e7ec7041c0f04563a3f415375d9f1701600ea64d5c16d55fb0f11a8",
+    "specs/system.md": "1cb32b71698c8accfafa34dab8c73eb47e047a49ccc6f2ac0b25734e1d8d1546"
+  }
+}

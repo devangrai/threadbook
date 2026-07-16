@@ -1,0 +1,45 @@
+{
+  "accepted_at": "2026-07-16T12:15:17+00:00",
+  "build_command": [
+    "make",
+    "build"
+  ],
+  "build_source_fingerprint": "0bbd64dd12c241e55c55a9c7b1582580849f6528497a67d3c3356605bb24608a",
+  "evaluate_command": [
+    "make",
+    "test"
+  ],
+  "evidence": [
+    {
+      "public_summary": {
+        "acceptance_claim": "deferred_not_passed",
+        "deferred_limitation": "Google Photos Picker integration, immutable import-batch materialization, and expired-URL verification are not implemented.",
+        "exact_package_inspected": true,
+        "feature_enabled": false,
+        "google_photos_picker_enabled": false,
+        "production_commands": 64,
+        "profile": "personal_mvp"
+      },
+      "recorded_at": "2026-07-16T12:15:15+00:00",
+      "requirement_id": "P06-GPH-001",
+      "sha256": "e5fbdd0998b3d89eae359ab39f35b0d786f206f8391081b6d8faf8babb3a29ac",
+      "status": "deferred",
+      "test": "p06_google_photos::disabled_exact_package_verification"
+    }
+  ],
+  "evidence_file_hashes": {
+    "P06-GPH-001.json": "e5fbdd0998b3d89eae359ab39f35b0d786f206f8391081b6d8faf8babb3a29ac",
+    "p06-google-photos-diagnostics.json": "8f5519d3a4f6ce921a8e5f5f3d98186628aec89dbec5708334dc51b3b05d7093"
+  },
+  "phase": "P06",
+  "proposal_hash": "e1c32e83486053bd5721802dc79566935669b7f4c9e857cf62d3a27517a5ba3e",
+  "run_id": "20260716T120148Z-a5f92440",
+  "schema_version": 1,
+  "selected_requirement_ids": [
+    "P06-GPH-001"
+  ],
+  "spec_hashes": {
+    "specs/phases/P06-connectors.md": "bf9c3e727015e0e1a9eb2f27655a8b263997d7f06cbf9e63753fe3cb42792f19",
+    "specs/system.md": "1cb32b71698c8accfafa34dab8c73eb47e047a49ccc6f2ac0b25734e1d8d1546"
+  }
+}

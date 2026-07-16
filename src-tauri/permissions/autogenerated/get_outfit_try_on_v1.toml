@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-outfit-try-on-v1"
+description = "Enables the get_outfit_try_on_v1 command without any pre-configured scope."
+commands.allow = ["get_outfit_try_on_v1"]
+
+[[permission]]
+identifier = "deny-get-outfit-try-on-v1"
+description = "Denies the get_outfit_try_on_v1 command without any pre-configured scope."
+commands.deny = ["get_outfit_try_on_v1"]

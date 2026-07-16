@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-reconciliation-case-v1"
+description = "Enables the open_reconciliation_case_v1 command without any pre-configured scope."
+commands.allow = ["open_reconciliation_case_v1"]
+
+[[permission]]
+identifier = "deny-open-reconciliation-case-v1"
+description = "Denies the open_reconciliation_case_v1 command without any pre-configured scope."
+commands.deny = ["open_reconciliation_case_v1"]
