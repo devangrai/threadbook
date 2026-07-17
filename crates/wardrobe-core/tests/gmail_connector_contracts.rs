@@ -23,6 +23,21 @@ fn save_request() -> SaveGmailSettingsV1Request {
     }
 }
 
+fn save_v2_value(discovery_scope: serde_json::Value) -> serde_json::Value {
+    json!({
+        "schema_version": 2,
+        "request_id": REQUEST_ID,
+        "client_id": CLIENT_ID,
+        "discovery_scope": discovery_scope,
+        "limits": {
+            "page_size": 50,
+            "max_pages": 5,
+            "max_unique_messages": 100,
+            "max_total_raw_bytes": 1048576
+        }
+    })
+}
+
 #[test]
 fn gmail_requests_and_nested_values_reject_unknown_fields() {
     let envelopes = [
@@ -50,6 +65,204 @@ fn gmail_requests_and_nested_values_reject_unknown_fields() {
         }
     });
     assert!(serde_json::from_value::<SaveGmailSettingsV1Request>(request).is_err());
+}
+
+#[test]
+fn gmail_v2_discovery_scopes_have_exact_strict_tagged_wire_shapes() {
+    let search = json!({"kind": "search", "query": "from:orders@example.com"});
+    let label = json!({"kind": "label", "label_name": "Wardrobe Receipts"});
+
+    let search_scope = serde_json::from_value::<GmailDiscoveryScopeV2>(search.clone()).unwrap();
+    let label_scope = serde_json::from_value::<GmailDiscoveryScopeV2>(label.clone()).unwrap();
+    assert_eq!(
+        search_scope,
+        GmailDiscoveryScopeV2::Search {
+            query: "from:orders@example.com".to_owned()
+        }
+    );
+    assert_eq!(
+        label_scope,
+        GmailDiscoveryScopeV2::Label {
+            label_name: "Wardrobe Receipts".to_owned()
+        }
+    );
+    assert_eq!(serde_json::to_value(search_scope).unwrap(), search);
+    assert_eq!(serde_json::to_value(label_scope).unwrap(), label);
+
+    for invalid in [
+        json!({"kind": "search", "query": "from:orders@example.com", "label_name": "Receipts"}),
+        json!({"kind": "label", "label_name": "Receipts", "query": "from:orders@example.com"}),
+        json!({"kind": "search", "query": "from:orders@example.com", "extra": true}),
+        json!({"kind": "unknown", "query": "from:orders@example.com"}),
+        json!({"query": "from:orders@example.com"}),
+        json!({"kind": "search"}),
+        json!({"kind": "label"}),
+    ] {
+        assert!(
+            serde_json::from_value::<GmailDiscoveryScopeV2>(invalid.clone()).is_err(),
+            "accepted {invalid}"
+        );
+    }
+}
+
+#[test]
+fn gmail_v2_requests_settings_and_responses_reject_unknown_fields() {
+    let mut request = save_v2_value(json!({
+        "kind": "search",
+        "query": "from:orders@example.com"
+    }));
+    request["extra"] = json!(true);
+    assert!(serde_json::from_value::<SaveGmailSettingsV2Request>(request).is_err());
+
+    let settings = json!({
+        "provider_profile": "google",
+        "oauth_client_id": CLIENT_ID,
+        "discovery_scope": {
+            "kind": "label",
+            "label_name": "Wardrobe Receipts"
+        },
+        "limits": {
+            "page_size": 50,
+            "max_pages": 5,
+            "max_unique_messages": 100,
+            "max_total_raw_bytes": 1048576
+        },
+        "extra": true
+    });
+    assert!(serde_json::from_value::<GmailConnectorSettingsV2>(settings).is_err());
+
+    let get = json!({
+        "schema_version": 2,
+        "request_id": REQUEST_ID,
+        "extra": true
+    });
+    assert!(serde_json::from_value::<GetGmailConnectorV2Request>(get).is_err());
+
+    let response = json!({
+        "schema_version": 2,
+        "request_id": REQUEST_ID,
+        "settings": null,
+        "status": "not_configured",
+        "user_action": "configure_gmail",
+        "extra": true
+    });
+    assert!(serde_json::from_value::<GetGmailConnectorV2Response>(response).is_err());
+}
+
+#[test]
+fn gmail_search_queries_use_utf8_byte_boundaries_and_reject_controls() {
+    for query in [
+        "x".to_owned(),
+        " ".to_owned(),
+        "x".repeat(MAX_GMAIL_QUERY_BYTES),
+        "\u{00e9}".repeat(MAX_GMAIL_QUERY_BYTES / 2),
+    ] {
+        assert!(
+            GmailDiscoveryScopeV2::Search {
+                query: query.clone()
+            }
+            .validate()
+            .is_ok(),
+            "rejected {} bytes",
+            query.len()
+        );
+    }
+
+    for query in [
+        String::new(),
+        "x".repeat(MAX_GMAIL_QUERY_BYTES + 1),
+        "\u{00e9}".repeat(MAX_GMAIL_QUERY_BYTES / 2 + 1),
+    ] {
+        assert_eq!(
+            GmailDiscoveryScopeV2::Search { query }
+                .validate()
+                .unwrap_err()
+                .field,
+            SafeFieldV1::GmailQuery
+        );
+    }
+
+    for control in ['\0', '\t', '\n', '\r', '\u{007f}', '\u{0085}'] {
+        let query = format!("from:orders{control}after:2026/01/01");
+        assert_eq!(
+            GmailDiscoveryScopeV2::Search { query }
+                .validate()
+                .unwrap_err()
+                .field,
+            SafeFieldV1::GmailQuery,
+            "accepted U+{:04X}",
+            u32::from(control)
+        );
+    }
+}
+
+#[test]
+fn gmail_search_query_whitespace_is_preserved_without_normalization() {
+    let query = "  from:orders@example.com  subject:\"Order ready\"  ";
+    let value = save_v2_value(json!({"kind": "search", "query": query}));
+    let request: SaveGmailSettingsV2Request = serde_json::from_value(value).unwrap();
+
+    assert!(request.validate().is_ok());
+    assert_eq!(
+        request.discovery_scope,
+        GmailDiscoveryScopeV2::Search {
+            query: query.to_owned()
+        }
+    );
+    assert_eq!(
+        serde_json::to_value(request).unwrap()["discovery_scope"]["query"],
+        json!(query)
+    );
+}
+
+#[test]
+fn gmail_v2_schema_versions_are_strict_at_decode_and_validation() {
+    for schema_version in [0, 1, 3, u8::MAX] {
+        let mut save = save_v2_value(json!({
+            "kind": "label",
+            "label_name": "Wardrobe Receipts"
+        }));
+        save["schema_version"] = json!(schema_version);
+        assert!(
+            serde_json::from_value::<SaveGmailSettingsV2Request>(save).is_err(),
+            "accepted schema {schema_version}"
+        );
+
+        let get = json!({
+            "schema_version": schema_version,
+            "request_id": REQUEST_ID
+        });
+        assert!(
+            serde_json::from_value::<GetGmailConnectorV2Request>(get).is_err(),
+            "accepted schema {schema_version}"
+        );
+
+        let response = json!({
+            "schema_version": schema_version,
+            "request_id": REQUEST_ID,
+            "settings": null,
+            "status": "not_configured",
+            "user_action": "configure_gmail"
+        });
+        assert!(
+            serde_json::from_value::<GetGmailConnectorV2Response>(response).is_err(),
+            "accepted response schema {schema_version}"
+        );
+    }
+
+    let request = SaveGmailSettingsV2Request {
+        schema_version: 1,
+        request_id: RequestId::new_v4(),
+        client_id: CLIENT_ID.to_owned(),
+        discovery_scope: GmailDiscoveryScopeV2::Label {
+            label_name: "Wardrobe Receipts".to_owned(),
+        },
+        limits: limits(),
+    };
+    assert_eq!(
+        request.validate().unwrap_err().field,
+        SafeFieldV1::SchemaVersion
+    );
 }
 
 #[test]
@@ -214,12 +427,38 @@ fn gmail_types_are_in_generated_typescript_declarations() {
     for name in [
         "GmailConnectorLimitsV1",
         "GmailConnectorSettingsV1",
+        "GmailConnectorSettingsV2",
+        "GmailDiscoveryScopeV2",
         "GetGmailConnectorV1Request",
+        "GetGmailConnectorV2Request",
         "SaveGmailSettingsV1Request",
+        "SaveGmailSettingsV2Request",
+        "GetGmailConnectorV2Response",
+        "SaveGmailSettingsV2Response",
         "ConnectGmailV1Response",
         "SyncGmailV1Response",
         "DisconnectGmailV1Response",
     ] {
         assert!(bindings.contains(name), "missing {name}");
     }
+    assert!(bindings.contains(r#""kind": "search""#));
+    assert!(bindings.contains(r#""kind": "label""#));
+    assert!(bindings.contains("query: string"));
+    assert!(bindings.contains("label_name: string"));
+    assert!(bindings.contains("schema_version: 2"));
+}
+
+#[test]
+fn gmail_v1_label_contract_remains_wire_compatible() {
+    let request = save_request();
+    let value = serde_json::to_value(&request).unwrap();
+
+    assert_eq!(value["schema_version"], json!(1));
+    assert_eq!(value["client_id"], json!(CLIENT_ID));
+    assert_eq!(value["label_name"], json!("Wardrobe Receipts"));
+    assert!(value.get("discovery_scope").is_none());
+    assert_eq!(
+        serde_json::from_value::<SaveGmailSettingsV1Request>(value).unwrap(),
+        request
+    );
 }

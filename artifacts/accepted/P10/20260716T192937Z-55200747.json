@@ -1,0 +1,243 @@
+{
+  "accepted_at": "2026-07-16T20:36:56+00:00",
+  "build_command": [
+    "make",
+    "build"
+  ],
+  "build_source_fingerprint": "7fe46f8ee1abe6532b0fb1bf50a8ac57e12fb20ec433cd640ecfba8b4bcfa830",
+  "evaluate_command": [
+    "make",
+    "test"
+  ],
+  "evidence": [
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 1,
+        "external_credentials_used": false,
+        "live_gmail_access": false,
+        "packaged_tauri_coverage": false,
+        "playwright_scope": "not_applicable",
+        "verification_scope": "focused_local_contracts_and_tests"
+      },
+      "recorded_at": "2026-07-16T20:36:07+00:00",
+      "requirement_id": "P10-GML-001",
+      "sha256": "317597f7eda4369b75c75eb9e7208023cc7bd73c40d9eb5a50cd299d955cc018",
+      "status": "pass",
+      "test": "p10_gmail::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 2,
+        "external_credentials_used": false,
+        "live_gmail_access": false,
+        "packaged_tauri_coverage": false,
+        "playwright_scope": "not_applicable",
+        "verification_scope": "focused_local_contracts_and_tests"
+      },
+      "recorded_at": "2026-07-16T20:36:07+00:00",
+      "requirement_id": "P10-GML-002",
+      "sha256": "f56f5fcbfd435d0cf0834851558d9d9eb61cad352828cbe0e7985777a72aec9b",
+      "status": "pass",
+      "test": "p10_gmail::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 1,
+        "external_credentials_used": false,
+        "live_gmail_access": false,
+        "packaged_tauri_coverage": false,
+        "playwright_scope": "not_applicable",
+        "verification_scope": "focused_local_contracts_and_tests"
+      },
+      "recorded_at": "2026-07-16T20:36:07+00:00",
+      "requirement_id": "P10-GML-003",
+      "sha256": "027830bd981a9804cfede9348cb250ad4d9531551027cfbb64134bc59f2761af",
+      "status": "pass",
+      "test": "p10_gmail::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 3,
+        "external_credentials_used": false,
+        "live_gmail_access": false,
+        "packaged_tauri_coverage": false,
+        "playwright_scope": "not_applicable",
+        "verification_scope": "focused_local_contracts_and_tests"
+      },
+      "recorded_at": "2026-07-16T20:36:07+00:00",
+      "requirement_id": "P10-GML-004",
+      "sha256": "dec7260abc7aadabf19dbac3053d267f9658ae5573a127acba0a84bfcc7dfe29",
+      "status": "pass",
+      "test": "p10_gmail::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 6,
+        "external_credentials_used": false,
+        "live_gmail_access": false,
+        "packaged_tauri_coverage": false,
+        "playwright_scope": "not_applicable",
+        "verification_scope": "focused_local_contracts_and_tests"
+      },
+      "recorded_at": "2026-07-16T20:36:07+00:00",
+      "requirement_id": "P10-GML-005",
+      "sha256": "d0c844d55f7f6e6eb000996284267c355783cf5fe9dc08fe682fc8c42001b71f",
+      "status": "pass",
+      "test": "p10_gmail::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 1,
+        "external_credentials_used": false,
+        "live_gmail_access": false,
+        "packaged_tauri_coverage": false,
+        "playwright_scope": "not_applicable",
+        "verification_scope": "focused_local_contracts_and_tests"
+      },
+      "recorded_at": "2026-07-16T20:36:07+00:00",
+      "requirement_id": "P10-GML-006",
+      "sha256": "c53ea820521dba66f816314d32ab81db1beef322a9569be1c80cc9cee6b994a7",
+      "status": "pass",
+      "test": "p10_gmail::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 2,
+        "external_credentials_used": false,
+        "live_gmail_access": false,
+        "packaged_tauri_coverage": false,
+        "playwright_scope": "not_applicable",
+        "verification_scope": "focused_local_contracts_and_tests"
+      },
+      "recorded_at": "2026-07-16T20:36:07+00:00",
+      "requirement_id": "P10-GML-007",
+      "sha256": "a07e7f9607af069c847a92236bff738a3de96dad0842cde5b8e0f3a632e283eb",
+      "status": "pass",
+      "test": "p10_gmail::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 4,
+        "external_credentials_used": false,
+        "live_gmail_access": false,
+        "packaged_tauri_coverage": false,
+        "playwright_scope": "not_applicable",
+        "verification_scope": "focused_local_contracts_and_tests"
+      },
+      "recorded_at": "2026-07-16T20:36:07+00:00",
+      "requirement_id": "P10-GML-008",
+      "sha256": "e760e5783aa762d698f370af7ef7da1cad87a65cfc00523e0cbc552c8ea68274",
+      "status": "pass",
+      "test": "p10_gmail::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 5,
+        "external_credentials_used": false,
+        "live_gmail_access": false,
+        "packaged_tauri_coverage": false,
+        "playwright_scope": "not_applicable",
+        "verification_scope": "focused_local_contracts_and_tests"
+      },
+      "recorded_at": "2026-07-16T20:36:07+00:00",
+      "requirement_id": "P10-GML-009",
+      "sha256": "5bb74e014bb0fa0e33eccda2af1c97de3b9ae22d43507ffed3717d8215545b32",
+      "status": "pass",
+      "test": "p10_gmail::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 3,
+        "external_credentials_used": false,
+        "live_gmail_access": false,
+        "packaged_tauri_coverage": false,
+        "playwright_scope": "not_applicable",
+        "verification_scope": "focused_local_contracts_and_tests"
+      },
+      "recorded_at": "2026-07-16T20:36:07+00:00",
+      "requirement_id": "P10-GML-010",
+      "sha256": "027d2d962981763b7d85f49f2a2d3b690489625818730c0dbc9d49938739e88d",
+      "status": "pass",
+      "test": "p10_gmail::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 1,
+        "external_credentials_used": false,
+        "live_gmail_access": false,
+        "packaged_tauri_coverage": false,
+        "playwright_scope": "not_applicable",
+        "verification_scope": "focused_local_contracts_and_tests"
+      },
+      "recorded_at": "2026-07-16T20:36:07+00:00",
+      "requirement_id": "P10-AUT-001",
+      "sha256": "8b4062815e53d4dd3e254243ca3a9ef0a1f5690a3e977db7a9a6e010c011e0d7",
+      "status": "pass",
+      "test": "p10_gmail::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 2,
+        "external_credentials_used": false,
+        "live_gmail_access": false,
+        "packaged_tauri_coverage": false,
+        "playwright_scope": "vite_transport_fixture_only",
+        "verification_scope": "focused_local_contracts_and_tests"
+      },
+      "recorded_at": "2026-07-16T20:36:07+00:00",
+      "requirement_id": "P10-UI-001",
+      "sha256": "ba72f3113ebefedc8ee827d27ffa401df67c91c9967af19b6838f0e6e44b9b97",
+      "status": "pass",
+      "test": "p10_gmail::focused_local_verification"
+    }
+  ],
+  "evidence_file_hashes": {
+    "P10-AUT-001.json": "8b4062815e53d4dd3e254243ca3a9ef0a1f5690a3e977db7a9a6e010c011e0d7",
+    "P10-GML-001.json": "317597f7eda4369b75c75eb9e7208023cc7bd73c40d9eb5a50cd299d955cc018",
+    "P10-GML-002.json": "f56f5fcbfd435d0cf0834851558d9d9eb61cad352828cbe0e7985777a72aec9b",
+    "P10-GML-003.json": "027830bd981a9804cfede9348cb250ad4d9531551027cfbb64134bc59f2761af",
+    "P10-GML-004.json": "dec7260abc7aadabf19dbac3053d267f9658ae5573a127acba0a84bfcc7dfe29",
+    "P10-GML-005.json": "d0c844d55f7f6e6eb000996284267c355783cf5fe9dc08fe682fc8c42001b71f",
+    "P10-GML-006.json": "c53ea820521dba66f816314d32ab81db1beef322a9569be1c80cc9cee6b994a7",
+    "P10-GML-007.json": "a07e7f9607af069c847a92236bff738a3de96dad0842cde5b8e0f3a632e283eb",
+    "P10-GML-008.json": "e760e5783aa762d698f370af7ef7da1cad87a65cfc00523e0cbc552c8ea68274",
+    "P10-GML-009.json": "5bb74e014bb0fa0e33eccda2af1c97de3b9ae22d43507ffed3717d8215545b32",
+    "P10-GML-010.json": "027d2d962981763b7d85f49f2a2d3b690489625818730c0dbc9d49938739e88d",
+    "P10-UI-001.json": "ba72f3113ebefedc8ee827d27ffa401df67c91c9967af19b6838f0e6e44b9b97",
+    "p10-gmail-diagnostics.json": "ce584c8f599add4ca166821464adf202097015224e9c6b083057ef1ad4ddcf0a"
+  },
+  "phase": "P10",
+  "proposal_hash": "cc0197fc5453351988e826dd493f4560065d498e19d4e08666d44f6c43558c94",
+  "run_id": "20260716T192937Z-55200747",
+  "schema_version": 1,
+  "selected_requirement_ids": [
+    "P10-AUT-001",
+    "P10-GML-001",
+    "P10-GML-002",
+    "P10-GML-003",
+    "P10-GML-004",
+    "P10-GML-005",
+    "P10-GML-006",
+    "P10-GML-007",
+    "P10-GML-008",
+    "P10-GML-009",
+    "P10-GML-010",
+    "P10-UI-001"
+  ],
+  "spec_hashes": {
+    "specs/phases/P10-gmail-wardrobe.md": "a37caed761091ab4536867049e2615724e1da396c1fa937ab4e214014a41f6dd",
+    "specs/system.md": "1cb32b71698c8accfafa34dab8c73eb47e047a49ccc6f2ac0b25734e1d8d1546"
+  }
+}

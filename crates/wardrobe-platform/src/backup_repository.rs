@@ -332,12 +332,16 @@ impl BackupRepository {
                 DeletionTargetKindV1::ImportRoot => ("import_roots", "root_id"),
                 DeletionTargetKindV1::Source => ("local_sources", "source_id"),
                 DeletionTargetKindV1::Item => ("catalog_items", "item_id"),
+                DeletionTargetKindV1::PurchaseUnit => {
+                    ("receipt_purchase_unit_promotions", "purchase_unit_id")
+                }
+                DeletionTargetKindV1::ReceiptPurchaseUnitEvidence => ("evidence", "evidence_id"),
                 DeletionTargetKindV1::PhotoKitEnrollment => {
                     ("photokit_enrollments", "enrollment_epoch")
                 }
                 DeletionTargetKindV1::PhotoKitAsset => ("photokit_assets", "asset_id"),
             };
-            let target_retained = table_exists(&snapshot, target_table.0)?
+            let mut target_retained = table_exists(&snapshot, target_table.0)?
                 && snapshot.query_row(
                     &format!(
                         "SELECT EXISTS(SELECT 1 FROM {} WHERE {} = ?1)",
@@ -346,6 +350,18 @@ impl BackupRepository {
                     [target_id],
                     |row| row.get::<_, bool>(0),
                 )?;
+            if target_kind == DeletionTargetKindV1::PurchaseUnit
+                && table_exists(&snapshot, "receipt_purchase_unit_deletions")?
+            {
+                target_retained |= snapshot.query_row(
+                    "SELECT EXISTS(
+                        SELECT 1 FROM receipt_purchase_unit_deletions
+                        WHERE purchase_unit_id=?1
+                     )",
+                    [target_id],
+                    |row| row.get::<_, bool>(0),
+                )?;
+            }
             let blob_retained = if table_exists(&snapshot, "blobs")? {
                 let mut statement =
                     snapshot.prepare("SELECT EXISTS(SELECT 1 FROM blobs WHERE sha256 = ?1)")?;

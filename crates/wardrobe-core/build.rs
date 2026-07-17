@@ -91,6 +91,24 @@ struct RemoteService {
     downloads_code: bool,
     model: String,
     provider: String,
+    #[serde(default)]
+    evaluator_sha256: Option<String>,
+    #[serde(default)]
+    phase_spec_sha256: Option<String>,
+    #[serde(default)]
+    projection_revision: Option<String>,
+    #[serde(default)]
+    prompt_revision: Option<String>,
+    #[serde(default)]
+    proposal_sha256: Option<String>,
+    #[serde(default)]
+    requirements_sha256: Option<String>,
+    #[serde(default)]
+    retention_revision: Option<String>,
+    #[serde(default)]
+    review_sha256: Option<String>,
+    #[serde(default)]
+    schema_revision: Option<String>,
 }
 
 fn nonempty(value: &str, label: &str) {
@@ -174,8 +192,8 @@ fn validate_closed_policy(policy: &Policy) {
 
     assert_eq!(
         policy.models.remote_services.len(),
-        2,
-        "remote service policy must contain exactly two reviewed bindings"
+        3,
+        "remote service policy must contain exactly three reviewed bindings"
     );
     for (purpose, service) in &policy.models.remote_services {
         assert!(
@@ -185,6 +203,45 @@ fn validate_closed_policy(policy: &Policy) {
         nonempty(&service.provider, "remote service provider");
         nonempty(&service.model, "remote service model");
     }
+    let receipt = service(policy, "openai_receipt_intelligence");
+    assert_eq!(receipt.provider, "openai");
+    assert_eq!(receipt.model, "gpt-5.6-sol");
+    assert_eq!(
+        receipt.evaluator_sha256.as_deref(),
+        Some("3fd9db5e09176d6dd83616b40ece3d39a1f706612998a037e3c1293c5459b70e")
+    );
+    assert_eq!(
+        receipt.phase_spec_sha256.as_deref(),
+        Some("e559ff6bcddf2d6546a50fbce22315b210c617c1454a3340ebcbd4619cb73c66")
+    );
+    assert_eq!(
+        receipt.prompt_revision.as_deref(),
+        Some("receipt-intelligence-prompt-v1")
+    );
+    assert_eq!(
+        receipt.schema_revision.as_deref(),
+        Some("receipt-intelligence-v1")
+    );
+    assert_eq!(
+        receipt.projection_revision.as_deref(),
+        Some("receipt-intelligence-projection-v1")
+    );
+    assert_eq!(
+        receipt.retention_revision.as_deref(),
+        Some("p11-openai-responses-retention-v1")
+    );
+    assert_eq!(
+        receipt.requirements_sha256.as_deref(),
+        Some("42c1c1a182b82571b49b926f679e56f1eb3b8fe6f7bdbb987013ada71ed98bb3")
+    );
+    assert_eq!(
+        receipt.proposal_sha256.as_deref(),
+        Some("ab85491e61c17dbd465655e6e21dc087f079de4b7e58784a0637215847904d04")
+    );
+    assert_eq!(
+        receipt.review_sha256.as_deref(),
+        Some("f35b29c4ac6b72cd76612b0aff2c1341de4db6e6bdf5846d050fa9cadb3161a6")
+    );
 }
 
 fn rust_string(value: &str) -> String {

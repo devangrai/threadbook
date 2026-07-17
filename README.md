@@ -9,7 +9,9 @@ EARS requirements and recorded evidence.
 
 ## Current status
 
-Phases P00 through P08 have accepted personal-MVP evidence. The packaged macOS
+Phases P00 through P11 have personal-MVP implementations and local acceptance
+evidence. P12 receipt purchase-unit promotion is implemented and remains the
+active acceptance boundary. The packaged macOS
 application supports local durable storage, manual catalog and folder imports,
 receipt extraction and approved image retrieval, and immutable photo-scope
 analysis with local Apple Vision person detection, explicit owner confirmation,
@@ -23,8 +25,8 @@ recommendations remain disabled until the frozen 500-case live evaluation
 passes. Experimental try-on now provides explicit privacy disclosure, a
 restart-safe real image-edits queue, labeled local results, and complete
 deletion accounting; live interoperability, segmentation quality, and
-visual-quality studies remain deferred behind their exact feature gates. Final
-production hardening remains in progress.
+visual-quality studies remain deferred behind their exact feature gates. Live
+personal Gmail, OpenAI, and PhotoKit interoperability remain home-Mac checks.
 
 ## Development workflow
 
@@ -80,6 +82,7 @@ and cannot enable the corresponding production feature.
 - [Phase manifest](specs/phases/manifest.json)
 - [P04 phase report](docs/phase-reports/P04.md)
 - [P08 phase report](docs/phase-reports/P08.md)
+- [P10-P12 home-Mac handoff](docs/HANDOFF.md)
 - [Agent development rules](AGENTS.md)
 
 ## Privacy

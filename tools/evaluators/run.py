@@ -36,6 +36,9 @@ from tools.evaluators import (  # noqa: E402
     p09_diagnostics,
     p09_supply_chain,
     p09_update,
+    p10_gmail,
+    p11_receipt_intelligence,
+    p12_receipt_promotion,
 )
 
 
@@ -74,6 +77,13 @@ def main() -> int:
     diagnostics_requirements = set(p09_diagnostics.REQUIREMENT_IDS)
     supply_chain_requirements = set(p09_supply_chain.REQUIREMENT_IDS)
     update_requirements = set(p09_update.REQUIREMENT_IDS)
+    p10_gmail_requirements = set(p10_gmail.REQUIREMENT_IDS)
+    p11_receipt_intelligence_requirements = set(
+        p11_receipt_intelligence.REQUIREMENT_IDS
+    )
+    p12_receipt_promotion_requirements = set(
+        p12_receipt_promotion.REQUIREMENT_IDS
+    )
     supported = (
         package_requirements
         | job_requirements
@@ -98,6 +108,9 @@ def main() -> int:
         | diagnostics_requirements
         | supply_chain_requirements
         | update_requirements
+        | p10_gmail_requirements
+        | p11_receipt_intelligence_requirements
+        | p12_receipt_promotion_requirements
     )
     requested = selected & supported
     unsupported = selected - supported
@@ -316,6 +329,38 @@ def main() -> int:
                 ROOT,
                 evidence_dir,
                 update_requested,
+            ),
+        )
+    p10_gmail_requested = requested & p10_gmail_requirements
+    if p10_gmail_requested:
+        exit_code = max(
+            exit_code,
+            p10_gmail.evaluate(
+                ROOT,
+                evidence_dir,
+                p10_gmail_requested,
+            ),
+        )
+    p11_receipt_intelligence_requested = (
+        requested & p11_receipt_intelligence_requirements
+    )
+    if p11_receipt_intelligence_requested:
+        exit_code = max(
+            exit_code,
+            p11_receipt_intelligence.evaluate(
+                ROOT,
+                evidence_dir,
+                p11_receipt_intelligence_requested,
+            ),
+        )
+    p12_receipt_promotion_requested = requested & p12_receipt_promotion_requirements
+    if p12_receipt_promotion_requested:
+        exit_code = max(
+            exit_code,
+            p12_receipt_promotion.evaluate(
+                ROOT,
+                evidence_dir,
+                p12_receipt_promotion_requested,
             ),
         )
     return exit_code

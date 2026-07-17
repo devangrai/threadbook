@@ -165,6 +165,14 @@ fn validate_opaque(
     Ok(())
 }
 
+fn deserialize_required_option<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de>,
+{
+    Option::<T>::deserialize(deserializer)
+}
+
 fn validate_path(path: &str) -> Result<(), ValidationError> {
     if path.is_empty()
         || path.chars().count() > MAX_PATH_CHARS
@@ -239,6 +247,7 @@ pub enum SourceAvailabilityV1 {
 pub enum EvidenceKindV1 {
     Image,
     MessageAttachment,
+    ReceiptPurchaseUnit,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
@@ -292,7 +301,14 @@ pub enum DecisionKindV1 {
     DecideEvidence,
     MergeItems,
     SplitItem,
+    PromoteReceiptPurchaseUnit,
     Undo,
+}
+
+impl DecisionKindV1 {
+    pub const fn allows_generic_undo(self) -> bool {
+        !matches!(self, Self::PromoteReceiptPurchaseUnit)
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
@@ -302,6 +318,8 @@ pub enum DeletionTargetKindV1 {
     ImportRoot,
     Source,
     Item,
+    PurchaseUnit,
+    ReceiptPurchaseUnitEvidence,
     #[serde(rename = "photokit_enrollment")]
     #[ts(rename = "photokit_enrollment")]
     PhotoKitEnrollment,
@@ -321,6 +339,7 @@ pub enum DeletionDependencyClassV1 {
     DecisionRecords,
     RemoteReferences,
     RetainedSharedBlobs,
+    RetainedSharedRecords,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
@@ -328,10 +347,15 @@ pub enum DeletionDependencyClassV1 {
 pub struct ItemAttributesV1 {
     pub display_name: String,
     pub category: ItemCategoryV1,
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub subcategory: Option<String>,
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub brand: Option<String>,
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub primary_color: Option<String>,
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub size: Option<String>,
+    #[serde(deserialize_with = "deserialize_required_option")]
     pub notes: Option<String>,
     pub tags: Vec<String>,
 }
@@ -427,6 +451,12 @@ pub struct DecisionSnapshotV1 {
     pub reversible: bool,
 }
 
+impl DecisionSnapshotV1 {
+    pub fn allows_generic_undo(&self) -> bool {
+        self.reversible && self.kind.allows_generic_undo()
+    }
+}
+
 impl Validate for DecisionSnapshotV1 {
     fn validate(&self) -> Result<(), ValidationError> {
         validate_unique(
@@ -442,6 +472,9 @@ impl Validate for DecisionSnapshotV1 {
             SafeFieldV1::EvidenceId,
         )?;
         if (self.kind == DecisionKindV1::Undo) != self.compensates_decision_id.is_some() {
+            return Err(ValidationError::new(SafeFieldV1::DecisionId));
+        }
+        if self.kind == DecisionKindV1::PromoteReceiptPurchaseUnit && self.reversible {
             return Err(ValidationError::new(SafeFieldV1::DecisionId));
         }
         Ok(())

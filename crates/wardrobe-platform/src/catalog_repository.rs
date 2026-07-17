@@ -3,6 +3,7 @@ use crate::database::stable_id;
 use crate::deletion_repository::prepare_plan;
 use crate::photo_repository::augment_photo_deletion_closure;
 use crate::receipt_repository::augment_receipt_image_deletion_closure;
+use crate::receipt_repository::load_order;
 use crate::reconciliation_repository::augment_reconciliation_deletion_closure;
 use crate::{Database, PlatformError, PlatformResult};
 use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
@@ -22,10 +23,11 @@ use wardrobe_core::{
     ItemId, ListCatalogV1Request, ListCatalogV1Response, ListDeletionPlanItemsV1Request,
     ListDeletionPlanItemsV1Response, ListInboxV1Request, ListInboxV1Response, MergeItemsV1Request,
     MergeItemsV1Response, PageCursorV1, PreviewDeletionV1Request, PreviewDeletionV1Response,
-    QuarantineId, QuarantineSnapshotV1, RefreshImportRootsV1Request, RefreshImportRootsV1Response,
+    QuarantineId, QuarantineSnapshotV1, ReceiptEventKindV1, ReceiptPurchaseUnitId,
+    ReceiptReviewActionV1, RefreshImportRootsV1Request, RefreshImportRootsV1Response,
     ReplayStatusV1, SaveItemV1Request, SaveItemV1Response, SourceAvailabilityV1, SourceSnapshotV1,
     SplitItemV1Request, SplitItemV1Response, UndoDecisionV1Request, UndoDecisionV1Response,
-    SCHEMA_VERSION_V1,
+    Validate, SCHEMA_VERSION_V1,
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -577,15 +579,18 @@ impl Database {
             return Ok(response);
         }
         let target_id = request.decision_id.to_string();
-        let (target_revision, inverse_json): (i64, String) = transaction
+        let (target_revision, inverse_json, target_kind): (i64, String, String) = transaction
             .query_row(
-                "SELECT catalog_revision, inverse_json FROM catalog_decisions
+                "SELECT catalog_revision, inverse_json, decision_kind FROM catalog_decisions
                  WHERE decision_id = ?1",
                 [&target_id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()?
             .ok_or(PlatformError::InvalidInput("decision_id"))?;
+        if target_kind == "promote_receipt_purchase_unit" {
+            return Err(PlatformError::Conflict("decision_not_reversible"));
+        }
         if target_revision as u64 != request.expected_catalog_revision {
             return Err(PlatformError::Conflict("undo_non_head"));
         }
@@ -654,6 +659,9 @@ impl Database {
         &self,
         request: &PreviewDeletionV1Request,
     ) -> PlatformResult<PreviewDeletionV1Response> {
+        request
+            .validate()
+            .map_err(|_| PlatformError::InvalidInput("deletion_target"))?;
         let now_ms = unix_now_ms()?;
         let maintenance = lock_maintenance()?;
         let mut connection = self.connection()?;
@@ -726,7 +734,13 @@ impl Database {
             deletion_page(&transaction, &token_text, first_class, 0, request.limit)?;
         let overall_count = counts
             .iter()
-            .filter(|count| count.class != DeletionDependencyClassV1::RetainedSharedBlobs)
+            .filter(|count| {
+                !matches!(
+                    count.class,
+                    DeletionDependencyClassV1::RetainedSharedBlobs
+                        | DeletionDependencyClassV1::RetainedSharedRecords
+                )
+            })
             .map(|count| count.count)
             .sum();
         let retained_shared_blob_count = counts
@@ -1117,6 +1131,7 @@ fn append_decision<Q: Serialize>(
             "assign" | "reject" | "defer" => DecisionKindV1::DecideEvidence,
             "merge" => DecisionKindV1::MergeItems,
             "split" => DecisionKindV1::SplitItem,
+            "promote_receipt_purchase_unit" => DecisionKindV1::PromoteReceiptPurchaseUnit,
             "undo" => DecisionKindV1::Undo,
             _ => return Err(PlatformError::Corrupt("decision_kind")),
         },
@@ -1192,6 +1207,7 @@ fn load_evidence(connection: &Connection, evidence_id: &str) -> PlatformResult<E
         kind: match row.1.as_str() {
             "image" => EvidenceKindV1::Image,
             "message_attachment" => EvidenceKindV1::MessageAttachment,
+            "receipt_purchase_unit" => EvidenceKindV1::ReceiptPurchaseUnit,
             _ => return Err(PlatformError::Corrupt("evidence_kind")),
         },
         state: match row.2.as_str() {
@@ -1396,7 +1412,7 @@ fn envelope_hash<Q: Serialize>(request: &Q) -> PlatformResult<String> {
     ))
 }
 
-fn deletion_classes() -> [DeletionDependencyClassV1; 7] {
+fn deletion_classes() -> [DeletionDependencyClassV1; 8] {
     [
         DeletionDependencyClassV1::Originals,
         DeletionDependencyClassV1::Derivatives,
@@ -1405,6 +1421,7 @@ fn deletion_classes() -> [DeletionDependencyClassV1; 7] {
         DeletionDependencyClassV1::DecisionRecords,
         DeletionDependencyClassV1::RemoteReferences,
         DeletionDependencyClassV1::RetainedSharedBlobs,
+        DeletionDependencyClassV1::RetainedSharedRecords,
     ]
 }
 
@@ -1417,6 +1434,7 @@ fn deletion_class_db(class: DeletionDependencyClassV1) -> &'static str {
         DeletionDependencyClassV1::DecisionRecords => "decision_records",
         DeletionDependencyClassV1::RemoteReferences => "remote_references",
         DeletionDependencyClassV1::RetainedSharedBlobs => "retained_shared_blobs",
+        DeletionDependencyClassV1::RetainedSharedRecords => "retained_shared_records",
     }
 }
 
@@ -1425,20 +1443,28 @@ fn deletion_target_db(kind: DeletionTargetKindV1) -> &'static str {
         DeletionTargetKindV1::ImportRoot => "import_root",
         DeletionTargetKindV1::Source => "source",
         DeletionTargetKindV1::Item => "item",
+        DeletionTargetKindV1::PurchaseUnit => "purchase_unit",
+        DeletionTargetKindV1::ReceiptPurchaseUnitEvidence => "receipt_purchase_unit_evidence",
         DeletionTargetKindV1::PhotoKitEnrollment => "photokit_enrollment",
         DeletionTargetKindV1::PhotoKitAsset => "photokit_asset",
     }
 }
 
-fn require_deletion_target(
+pub(crate) fn require_deletion_target(
     connection: &Connection,
     kind: DeletionTargetKindV1,
     id: &str,
 ) -> PlatformResult<()> {
+    if resolve_p12_deletion_target(connection, kind, id)?.is_some() {
+        return Ok(());
+    }
     let sql = match kind {
         DeletionTargetKindV1::ImportRoot => "SELECT 1 FROM import_roots WHERE root_id = ?1",
         DeletionTargetKindV1::Source => "SELECT 1 FROM local_sources WHERE source_id = ?1",
         DeletionTargetKindV1::Item => "SELECT 1 FROM catalog_items WHERE item_id = ?1",
+        DeletionTargetKindV1::PurchaseUnit | DeletionTargetKindV1::ReceiptPurchaseUnitEvidence => {
+            return Err(PlatformError::InvalidInput("deletion_target"));
+        }
         DeletionTargetKindV1::PhotoKitEnrollment => {
             "SELECT 1 FROM photokit_enrollments WHERE enrollment_epoch = ?1"
         }
@@ -1450,12 +1476,300 @@ fn require_deletion_target(
         .ok_or(PlatformError::InvalidInput("deletion_target"))
 }
 
+#[derive(Clone, Debug)]
+struct P12PromotionBranch {
+    authority_snapshot_id: String,
+    item_id: String,
+    evidence_id: String,
+    decision_id: String,
+    request_id: String,
+}
+
+#[derive(Clone, Debug)]
+struct P12DeletionTarget {
+    purchase_unit_id: String,
+    local_source_id: String,
+    authority_id: String,
+    authority_revision: i64,
+    order_evidence_id: String,
+    order_line_id: String,
+    unit_ordinal: i64,
+    review_decision_id: Option<String>,
+    branch: Option<P12PromotionBranch>,
+}
+
+fn resolve_p12_deletion_target(
+    connection: &Connection,
+    kind: DeletionTargetKindV1,
+    target_id: &str,
+) -> PlatformResult<Option<P12DeletionTarget>> {
+    let promotion_predicate = match kind {
+        DeletionTargetKindV1::PurchaseUnit => "promotion.purchase_unit_id=?1",
+        DeletionTargetKindV1::ReceiptPurchaseUnitEvidence => {
+            let evidence_kind = connection
+                .query_row(
+                    "SELECT evidence_kind FROM evidence WHERE evidence_id=?1",
+                    [target_id],
+                    |row| row.get::<_, String>(0),
+                )
+                .optional()?
+                .ok_or(PlatformError::InvalidInput("deletion_target"))?;
+            if evidence_kind != "receipt_purchase_unit" {
+                return Err(PlatformError::InvalidInput("deletion_target"));
+            }
+            "promotion.evidence_id=?1"
+        }
+        DeletionTargetKindV1::Item => "promotion.item_id=?1",
+        _ => return Ok(None),
+    };
+    let promotion_sql = format!(
+        "SELECT promotion.purchase_unit_id,snapshot.local_source_id,
+                snapshot.authority_id,snapshot.authority_revision,
+                snapshot.order_evidence_id,promotion.order_line_id,
+                promotion.unit_ordinal,snapshot.review_decision_id,
+                promotion.authority_snapshot_id,promotion.item_id,
+                promotion.evidence_id,promotion.decision_id,promotion.request_id
+         FROM receipt_purchase_unit_promotions promotion
+         JOIN receipt_authority_snapshots snapshot
+           ON snapshot.authority_snapshot_id=promotion.authority_snapshot_id
+         WHERE {promotion_predicate}"
+    );
+    let promotion = connection
+        .query_row(&promotion_sql, [target_id], |row| {
+            Ok(P12DeletionTarget {
+                purchase_unit_id: row.get(0)?,
+                local_source_id: row.get(1)?,
+                authority_id: row.get(2)?,
+                authority_revision: row.get(3)?,
+                order_evidence_id: row.get(4)?,
+                order_line_id: row.get(5)?,
+                unit_ordinal: row.get(6)?,
+                review_decision_id: Some(row.get(7)?),
+                branch: Some(P12PromotionBranch {
+                    authority_snapshot_id: row.get(8)?,
+                    item_id: row.get(9)?,
+                    evidence_id: row.get(10)?,
+                    decision_id: row.get(11)?,
+                    request_id: row.get(12)?,
+                }),
+            })
+        })
+        .optional()?;
+    if promotion.is_some() {
+        return Ok(promotion);
+    }
+    if kind == DeletionTargetKindV1::ReceiptPurchaseUnitEvidence {
+        return Err(PlatformError::InvalidInput("deletion_target"));
+    }
+    if kind == DeletionTargetKindV1::Item {
+        return Ok(None);
+    }
+
+    if let Some(deletion) = connection
+        .query_row(
+            "SELECT purchase_unit_id,local_source_id,authority_id,
+                    authority_revision,order_evidence_id,order_line_id,unit_ordinal
+             FROM receipt_purchase_unit_deletions WHERE purchase_unit_id=?1",
+            [target_id],
+            |row| {
+                Ok(P12DeletionTarget {
+                    purchase_unit_id: row.get(0)?,
+                    local_source_id: row.get(1)?,
+                    authority_id: row.get(2)?,
+                    authority_revision: row.get(3)?,
+                    order_evidence_id: row.get(4)?,
+                    order_line_id: row.get(5)?,
+                    unit_ordinal: row.get(6)?,
+                    review_decision_id: None,
+                    branch: None,
+                })
+            },
+        )
+        .optional()?
+    {
+        return Ok(Some(deletion));
+    }
+
+    let mut authorities = connection.prepare(
+        "SELECT local_source_id,authority_id,order_evidence_id,
+                review_decision_id,receipt_revision,authority_revision
+         FROM receipt_source_authority_heads ORDER BY local_source_id",
+    )?;
+    let authorities = authorities
+        .query_map([], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, String>(3)?,
+                row.get::<_, i64>(4)?,
+                row.get::<_, i64>(5)?,
+            ))
+        })?
+        .collect::<Result<Vec<_>, _>>()?;
+    for (
+        source_id,
+        authority_id,
+        order_id,
+        review_decision_id,
+        _receipt_revision,
+        authority_revision,
+    ) in authorities
+    {
+        let order = load_order(connection, &order_id)?;
+        let review = order
+            .review_head
+            .as_ref()
+            .ok_or(PlatformError::Corrupt("receipt_authority_review"))?;
+        if review.decision.decision_id.to_string() != review_decision_id
+            || !matches!(
+                review.decision.action,
+                ReceiptReviewActionV1::Confirm | ReceiptReviewActionV1::Correct
+            )
+        {
+            continue;
+        }
+        let prior_authority_state: i64 = connection.query_row(
+            "SELECT
+                (SELECT COUNT(*)
+                 FROM receipt_purchase_unit_promotions promotion
+                 JOIN receipt_authority_snapshots snapshot
+                   ON snapshot.authority_snapshot_id=promotion.authority_snapshot_id
+                 WHERE snapshot.local_source_id=?1
+                   AND (snapshot.authority_id<>?2 OR snapshot.order_evidence_id<>?3))
+              + (SELECT COUNT(*) FROM receipt_purchase_unit_deletions deletion
+                 WHERE deletion.local_source_id=?1
+                   AND (deletion.authority_id<>?2 OR deletion.order_evidence_id<>?3))",
+            params![source_id, authority_id, order_id],
+            |row| row.get(0),
+        )?;
+        if prior_authority_state != 0 {
+            continue;
+        }
+        let corrected = review.decision.corrected_order.as_ref();
+        for (index, line) in order.line_items.iter().enumerate() {
+            let corrected_line = corrected.and_then(|value| value.line_items.get(index));
+            if corrected_line.is_some_and(|value| value.order_line_id != line.order_line_id) {
+                return Err(PlatformError::Corrupt("receipt_corrected_line"));
+            }
+            let event_kind = corrected_line.map_or(line.event_kind.value, |value| value.event_kind);
+            let quantity = corrected_line.map_or(line.quantity.value, |value| value.quantity);
+            if event_kind != Some(ReceiptEventKindV1::Purchase) {
+                continue;
+            }
+            let Some(quantity) = quantity else {
+                continue;
+            };
+            for ordinal in 0..u32::try_from(quantity)
+                .map_err(|_| PlatformError::Corrupt("receipt_quantity"))?
+            {
+                let purchase_unit_id =
+                    ReceiptPurchaseUnitId::derive_v1(line.order_line_id, ordinal)
+                        .map_err(|_| PlatformError::Corrupt("receipt_purchase_unit_id"))?
+                        .to_string();
+                if purchase_unit_id == target_id {
+                    return Ok(Some(P12DeletionTarget {
+                        purchase_unit_id,
+                        local_source_id: source_id,
+                        authority_id,
+                        authority_revision,
+                        order_evidence_id: order_id,
+                        order_line_id: line.order_line_id.to_string(),
+                        unit_ordinal: i64::from(ordinal),
+                        review_decision_id: Some(review_decision_id),
+                        branch: None,
+                    }));
+                }
+            }
+        }
+    }
+    Err(PlatformError::InvalidInput("deletion_target"))
+}
+
+pub(crate) fn ensure_purchase_unit_deletion_authority(
+    transaction: &Transaction<'_>,
+    target_kind: DeletionTargetKindV1,
+    target_id: &str,
+    deletion_request_id: &str,
+    now_ms: i64,
+) -> PlatformResult<()> {
+    if !matches!(
+        target_kind,
+        DeletionTargetKindV1::PurchaseUnit
+            | DeletionTargetKindV1::ReceiptPurchaseUnitEvidence
+            | DeletionTargetKindV1::Item
+    ) {
+        return Ok(());
+    }
+    let Some(target) = resolve_p12_deletion_target(transaction, target_kind, target_id)? else {
+        return Ok(());
+    };
+    let existing = transaction
+        .query_row(
+            "SELECT local_source_id,authority_id,authority_revision,
+                    order_evidence_id,order_line_id,unit_ordinal
+             FROM receipt_purchase_unit_deletions WHERE purchase_unit_id=?1",
+            [&target.purchase_unit_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, i64>(5)?,
+                ))
+            },
+        )
+        .optional()?;
+    if let Some(existing) = existing {
+        if existing
+            != (
+                target.local_source_id,
+                target.authority_id,
+                target.authority_revision,
+                target.order_evidence_id,
+                target.order_line_id,
+                target.unit_ordinal,
+            )
+        {
+            return Err(PlatformError::Corrupt(
+                "receipt_purchase_unit_deletion_identity",
+            ));
+        }
+        return Ok(());
+    }
+    transaction.execute(
+        "INSERT INTO receipt_purchase_unit_deletions(
+            purchase_unit_id,identity_version,local_source_id,authority_id,
+            authority_revision,order_evidence_id,order_line_id,unit_ordinal,
+            deletion_request_id,created_at_ms
+         ) VALUES(?1,'receipt-purchase-unit-v1',?2,?3,?4,?5,?6,?7,?8,?9)",
+        params![
+            target.purchase_unit_id,
+            target.local_source_id,
+            target.authority_id,
+            target.authority_revision,
+            target.order_evidence_id,
+            target.order_line_id,
+            target.unit_ordinal,
+            deletion_request_id,
+            now_ms,
+        ],
+    )?;
+    Ok(())
+}
+
 pub(crate) fn materialize_deletion_rows(
     transaction: &Transaction<'_>,
     token: &str,
     kind: DeletionTargetKindV1,
     target_id: &str,
 ) -> PlatformResult<()> {
+    if let Some(target) = resolve_p12_deletion_target(transaction, kind, target_id)? {
+        materialize_p12_directional_rows(transaction, token, kind, target_id, &target)?;
+        return Ok(());
+    }
     let mut source_ids = BTreeSet::new();
     let mut evidence_ids = BTreeSet::new();
     let mut item_ids = BTreeSet::new();
@@ -1475,6 +1789,9 @@ pub(crate) fn materialize_deletion_rows(
                     .collect::<Result<Vec<_>, _>>()?,
             );
         }
+        DeletionTargetKindV1::PurchaseUnit | DeletionTargetKindV1::ReceiptPurchaseUnitEvidence => {
+            return Err(PlatformError::InvalidInput("deletion_target"));
+        }
         DeletionTargetKindV1::PhotoKitEnrollment | DeletionTargetKindV1::PhotoKitAsset => {
             insert_preview_row(transaction, token, "source_records", target_id, target_id)?;
             if kind == DeletionTargetKindV1::PhotoKitEnrollment {
@@ -1491,11 +1808,19 @@ pub(crate) fn materialize_deletion_rows(
         }
     }
     let gmail_provider_source_ids = expand_gmail_source_lineage(transaction, &mut source_ids)?;
-    let receipt = expand_deletion_closure(
+    let mut receipt = expand_deletion_closure(
         transaction,
         &mut source_ids,
         &mut evidence_ids,
         &mut item_ids,
+    )?;
+    materialize_p12_source_ownership(
+        transaction,
+        token,
+        &source_ids,
+        &mut evidence_ids,
+        &mut item_ids,
+        &mut receipt,
     )?;
 
     if kind == DeletionTargetKindV1::ImportRoot {
@@ -1644,6 +1969,282 @@ pub(crate) fn materialize_deletion_rows(
     augment_recommendation_deletion_closure(transaction, token, &item_ids)?;
     augment_try_on_deletion_closure(transaction, token, &try_on_approvals)?;
     classify_prior_preview_rows(transaction, token, kind, target_id, &source_ids, &item_ids)?;
+    Ok(())
+}
+
+fn materialize_p12_directional_rows(
+    connection: &Connection,
+    token: &str,
+    target_kind: DeletionTargetKindV1,
+    target_id: &str,
+    target: &P12DeletionTarget,
+) -> PlatformResult<()> {
+    for (kind, id) in [
+        ("source", target.local_source_id.as_str()),
+        ("order", target.order_evidence_id.as_str()),
+        ("order_line", target.order_line_id.as_str()),
+        ("purchase_unit_deletion", target.purchase_unit_id.as_str()),
+    ] {
+        let record_id = format!("retained_receipt_{kind}:{id}");
+        insert_preview_row(
+            connection,
+            token,
+            "retained_shared_records",
+            &record_id,
+            &record_id,
+        )?;
+    }
+    if let Some(review_decision_id) = &target.review_decision_id {
+        let record_id = format!("retained_receipt_review_decision:{review_decision_id}");
+        insert_preview_row(
+            connection,
+            token,
+            "retained_shared_records",
+            &record_id,
+            &record_id,
+        )?;
+    }
+
+    let Some(branch) = &target.branch else {
+        classify_prior_preview_rows(
+            connection,
+            token,
+            target_kind,
+            target_id,
+            &BTreeSet::new(),
+            &BTreeSet::new(),
+        )?;
+        return Ok(());
+    };
+
+    let promotion_row = format!(
+        "receipt_purchase_unit_promotion:{}:{}",
+        target.order_line_id, target.unit_ordinal
+    );
+    insert_preview_row(
+        connection,
+        token,
+        "decision_records",
+        &promotion_row,
+        &promotion_row,
+    )?;
+    materialize_receipt_command_rows(connection, token, &branch.request_id)?;
+
+    insert_preview_row(
+        connection,
+        token,
+        "source_records",
+        &branch.item_id,
+        &branch.item_id,
+    )?;
+    insert_preview_row(
+        connection,
+        token,
+        "evidence_records",
+        &branch.evidence_id,
+        &branch.evidence_id,
+    )?;
+    let item_evidence = format!("item_evidence:{}:{}", branch.item_id, branch.evidence_id);
+    insert_preview_row(
+        connection,
+        token,
+        "evidence_records",
+        &item_evidence,
+        &item_evidence,
+    )?;
+    insert_preview_row(
+        connection,
+        token,
+        "decision_records",
+        &branch.decision_id,
+        &branch.decision_id,
+    )?;
+    insert_related_rows(
+        connection,
+        token,
+        "decision_records",
+        "decision_entities",
+        "entity_id",
+        "decision_id",
+        &branch.decision_id,
+    )?;
+
+    let snapshot_references: i64 = connection.query_row(
+        "SELECT COUNT(*) FROM receipt_purchase_unit_promotions
+         WHERE authority_snapshot_id=?1",
+        [&branch.authority_snapshot_id],
+        |row| row.get(0),
+    )?;
+    if snapshot_references == 1 {
+        let snapshot = format!(
+            "receipt_authority_snapshot:{}",
+            branch.authority_snapshot_id
+        );
+        insert_preview_row(connection, token, "evidence_records", &snapshot, &snapshot)?;
+    } else if snapshot_references > 1 {
+        let snapshot = format!(
+            "retained_receipt_authority_snapshot:{}",
+            branch.authority_snapshot_id
+        );
+        insert_preview_row(
+            connection,
+            token,
+            "retained_shared_records",
+            &snapshot,
+            &snapshot,
+        )?;
+    } else {
+        return Err(PlatformError::Corrupt(
+            "receipt_authority_snapshot_reference",
+        ));
+    }
+
+    let item_ids = BTreeSet::from([branch.item_id.clone()]);
+    let source_ids = BTreeSet::new();
+    insert_related_rows(
+        connection,
+        token,
+        "remote_references",
+        "remote_references",
+        "remote_reference_id",
+        "item_id",
+        &branch.item_id,
+    )?;
+    let try_on_approvals = try_on_deletion_approvals(connection, &source_ids, &item_ids)?;
+    materialize_blob_rows(
+        connection,
+        token,
+        &source_ids,
+        &BTreeSet::from([branch.request_id.clone()]),
+        &try_on_approvals,
+    )?;
+    augment_reconciliation_deletion_closure(connection, token, &source_ids, &item_ids)?;
+    materialize_affected_outfits(connection, token, &item_ids)?;
+    augment_recommendation_deletion_closure(connection, token, &item_ids)?;
+    augment_try_on_deletion_closure(connection, token, &try_on_approvals)?;
+    classify_prior_preview_rows(
+        connection,
+        token,
+        target_kind,
+        target_id,
+        &source_ids,
+        &item_ids,
+    )?;
+    Ok(())
+}
+
+fn materialize_p12_source_ownership(
+    connection: &Connection,
+    token: &str,
+    source_ids: &BTreeSet<String>,
+    evidence_ids: &mut BTreeSet<String>,
+    item_ids: &mut BTreeSet<String>,
+    receipt: &mut ReceiptDeletionClosure,
+) -> PlatformResult<()> {
+    for source_id in source_ids {
+        let mut snapshots = connection.prepare(
+            "SELECT authority_snapshot_id FROM receipt_authority_snapshots
+             WHERE local_source_id=?1 ORDER BY authority_snapshot_id",
+        )?;
+        let snapshots = snapshots
+            .query_map([source_id], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?;
+        for snapshot_id in snapshots {
+            let snapshot_row = format!("receipt_authority_snapshot:{snapshot_id}");
+            insert_preview_row(
+                connection,
+                token,
+                "evidence_records",
+                &snapshot_row,
+                &snapshot_row,
+            )?;
+            let mut promotions = connection.prepare(
+                "SELECT order_line_id,unit_ordinal,item_id,evidence_id,
+                        decision_id,request_id
+                 FROM receipt_purchase_unit_promotions
+                 WHERE authority_snapshot_id=?1
+                 ORDER BY order_line_id,unit_ordinal",
+            )?;
+            let promotions = promotions
+                .query_map([&snapshot_id], |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, i64>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?,
+                        row.get::<_, String>(5)?,
+                    ))
+                })?
+                .collect::<Result<Vec<_>, _>>()?;
+            for (line_id, ordinal, item_id, evidence_id, decision_id, request_id) in promotions {
+                let promotion = format!("receipt_purchase_unit_promotion:{line_id}:{ordinal}");
+                insert_preview_row(
+                    connection,
+                    token,
+                    "decision_records",
+                    &promotion,
+                    &promotion,
+                )?;
+                item_ids.insert(item_id);
+                evidence_ids.insert(evidence_id);
+                insert_preview_row(
+                    connection,
+                    token,
+                    "decision_records",
+                    &decision_id,
+                    &decision_id,
+                )?;
+                materialize_receipt_command_rows(connection, token, &request_id)?;
+                receipt.command_request_ids.insert(request_id);
+            }
+        }
+
+        let mut deletions = connection.prepare(
+            "SELECT purchase_unit_id FROM receipt_purchase_unit_deletions
+             WHERE local_source_id=?1 ORDER BY purchase_unit_id",
+        )?;
+        for purchase_unit_id in deletions
+            .query_map([source_id], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?
+        {
+            let deletion = format!("receipt_purchase_unit_deletion:{purchase_unit_id}");
+            insert_preview_row(connection, token, "decision_records", &deletion, &deletion)?;
+        }
+    }
+    Ok(())
+}
+
+fn materialize_receipt_command_rows(
+    connection: &Connection,
+    token: &str,
+    request_id: &str,
+) -> PlatformResult<()> {
+    let mut entities = connection.prepare(
+        "SELECT entity_kind,entity_id FROM receipt_command_entities
+         WHERE request_id=?1 ORDER BY entity_kind,entity_id",
+    )?;
+    for (entity_kind, entity_id) in entities
+        .query_map([request_id], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })?
+        .collect::<Result<Vec<_>, _>>()?
+    {
+        let entity = format!("receipt_command_entity:{request_id}:{entity_kind}:{entity_id}");
+        insert_preview_row(connection, token, "decision_records", &entity, &entity)?;
+    }
+    if connection
+        .query_row(
+            "SELECT 1 FROM command_receipts WHERE request_id=?1",
+            [request_id],
+            |_| Ok(()),
+        )
+        .optional()?
+        .is_some()
+    {
+        let receipt = format!("receipt_command_receipt:{request_id}");
+        insert_preview_row(connection, token, "decision_records", &receipt, &receipt)?;
+    }
     Ok(())
 }
 
@@ -2634,6 +3235,68 @@ fn classify_prior_preview_rows(
             "photokit_asset" => {
                 target_kind == DeletionTargetKindV1::PhotoKitAsset && prior_target == target_id
             }
+            "purchase_unit" => {
+                (target_kind == DeletionTargetKindV1::PurchaseUnit && prior_target == target_id)
+                    || connection.query_row(
+                        "SELECT EXISTS(
+                            SELECT 1
+                            FROM receipt_purchase_unit_promotions promotion
+                            JOIN receipt_authority_snapshots snapshot
+                              ON snapshot.authority_snapshot_id=
+                                 promotion.authority_snapshot_id
+                            WHERE promotion.purchase_unit_id=?1
+                              AND (
+                                snapshot.local_source_id IN (
+                                  SELECT value FROM json_each(?2)
+                                )
+                                OR promotion.item_id IN (
+                                  SELECT value FROM json_each(?3)
+                                )
+                              )
+                            UNION ALL
+                            SELECT 1
+                            FROM receipt_purchase_unit_deletions deletion
+                            WHERE deletion.purchase_unit_id=?1
+                              AND deletion.local_source_id IN (
+                                SELECT value FROM json_each(?2)
+                              )
+                         )",
+                        params![
+                            prior_target,
+                            serde_json::to_string(source_ids)?,
+                            serde_json::to_string(item_ids)?
+                        ],
+                        |row| row.get::<_, bool>(0),
+                    )?
+            }
+            "receipt_purchase_unit_evidence" => {
+                (target_kind == DeletionTargetKindV1::ReceiptPurchaseUnitEvidence
+                    && prior_target == target_id)
+                    || connection.query_row(
+                        "SELECT EXISTS(
+                            SELECT 1
+                            FROM receipt_purchase_unit_promotions promotion
+                            JOIN receipt_authority_snapshots snapshot
+                              ON snapshot.authority_snapshot_id=
+                                 promotion.authority_snapshot_id
+                            WHERE promotion.evidence_id=?1
+                              AND (
+                                snapshot.local_source_id IN (
+                                  SELECT value FROM json_each(?2)
+                                )
+                                OR promotion.item_id IN (
+                                  SELECT value FROM json_each(?3)
+                                )
+                              )
+                         )",
+                        params![
+                            prior_target,
+                            serde_json::to_string(source_ids)?,
+                            serde_json::to_string(item_ids)?
+                        ],
+                        |row| row.get::<_, bool>(0),
+                    )?
+            }
             _ => return Err(PlatformError::Corrupt("deletion_preview_target_kind")),
         };
         if !reachable {
@@ -2848,7 +3511,11 @@ fn deletion_page(
             class,
             record_id,
             display_label,
-            retained: class == DeletionDependencyClassV1::RetainedSharedBlobs,
+            retained: matches!(
+                class,
+                DeletionDependencyClassV1::RetainedSharedBlobs
+                    | DeletionDependencyClassV1::RetainedSharedRecords
+            ),
         })
         .collect::<Vec<_>>();
     let next_offset = offset + items.len() as u64;
@@ -2952,7 +3619,61 @@ mod tests {
     use image::{ColorType, ImageFormat};
     use std::fs;
     use std::os::unix::fs::symlink;
-    use wardrobe_core::{ItemCategoryV1, SplitGroupV1};
+    use wardrobe_core::{ItemCategoryV1, RequestId, SplitGroupV1};
+
+    #[test]
+    fn promotion_undo_guard_precedes_revision_checks_and_writes() {
+        let temporary = tempfile::tempdir().unwrap();
+        let paths = PrivateAppPaths::create(temporary.path().join("app")).unwrap();
+        let database = Database::open(&paths, 1).unwrap();
+        let connection = database.connection().unwrap();
+        let decision_id = Uuid::new_v4();
+        let promotion_request_id = Uuid::new_v4();
+        connection
+            .execute(
+                "INSERT INTO catalog_decisions(
+                    decision_id,request_id,decision_kind,catalog_revision,
+                    forward_json,inverse_json,compensates_decision_id,created_at_ms
+                 ) VALUES(?1,?2,'promote_receipt_purchase_unit',1,'{}',
+                          '{\"kind\":\"irreversible_receipt_purchase_unit_promotion\"}',
+                          NULL,1)",
+                params![decision_id.to_string(), promotion_request_id.to_string()],
+            )
+            .unwrap();
+        drop(connection);
+
+        let error = database
+            .undo_impl(&UndoDecisionV1Request {
+                schema_version: SCHEMA_VERSION_V1,
+                request_id: RequestId::new_v4(),
+                decision_id: DecisionId::new(decision_id).unwrap(),
+                expected_catalog_revision: 999,
+            })
+            .unwrap_err();
+        assert!(matches!(
+            error,
+            PlatformError::Conflict("decision_not_reversible")
+        ));
+        let connection = database.connection().unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT catalog_revision FROM revision_state WHERE singleton=1",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM command_receipts", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            0
+        );
+    }
 
     #[test]
     fn deletion_schema_classification_covers_every_phase_table_and_blob_fk() {
@@ -2973,6 +3694,14 @@ mod tests {
             "receipt_review_decisions",
             "receipt_review_heads",
             "receipt_command_entities",
+            "receipt_authority_snapshots",
+            "receipt_purchase_unit_promotions",
+            "receipt_purchase_unit_deletions",
+            "receipt_intelligence_approvals",
+            "receipt_intelligence_attempts",
+            "receipt_intelligence_audits",
+            "receipt_intelligence_classifications",
+            "receipt_source_authority_heads",
             "receipt_image_candidates",
             "receipt_image_candidate_overflow",
             "receipt_image_approvals",

@@ -1,10 +1,11 @@
+use crate::blob::{PreparedBlobMetadata, PreparedBlobOperation};
 use crate::database::stable_id;
 use crate::gmail_sync::{
     GmailSyncStore, HistoryId, RevisionEffect, SyncBatch, SyncCommit, SyncError, SyncKey,
     GMAIL_RAW_MESSAGE_LIMIT,
 };
 use crate::imports::{prepare_message_parts, PreparedMimePart};
-use crate::{BlobRecord, BlobStore, Database, PlatformError};
+use crate::{BlobStore, Database, PlatformError, PlatformResult};
 use rusqlite::{params, OptionalExtension, Transaction, TransactionBehavior};
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
@@ -19,7 +20,7 @@ struct PreparedEffect {
     availability: &'static str,
     reason: &'static str,
     graph_sha256: String,
-    blob: Option<BlobRecord>,
+    blob: Option<PreparedBlobMetadata>,
     mime_manifest_sha256: String,
     evidence_manifest_sha256: String,
     parts: Vec<PreparedMimePart>,
@@ -37,6 +38,20 @@ pub struct GmailOperationCommit {
     pub commit: SyncCommit,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GmailScopeInitialization {
+    pub account_key: String,
+    pub credential_locator: String,
+    pub scope_id: String,
+    pub scope_fingerprint: String,
+    pub storage_scope_key: String,
+    pub discovery_kind: String,
+    pub discovery_value: String,
+    pub parser_revision: String,
+    pub materialization_revision: String,
+    pub created_at_ms: i64,
+}
+
 impl Database {
     pub fn initialize_gmail_scope(
         &self,
@@ -49,18 +64,61 @@ impl Database {
         materialization_revision: &str,
         now_ms: i64,
     ) -> Result<(), PlatformError> {
-        validate_hash(account_key)?;
-        validate_hash(scope_fingerprint)?;
-        validate_provider_value(label_id)?;
-        validate_revision_name(parser_revision)?;
-        validate_revision_name(materialization_revision)?;
-        uuid::Uuid::parse_str(scope_id)
-            .map_err(|_| PlatformError::InvalidInput("gmail_scope_id"))?;
+        self.initialize_gmail_scope_v2(
+            account_key,
+            credential_locator,
+            scope_id,
+            scope_fingerprint,
+            label_id,
+            "label",
+            label_id,
+            parser_revision,
+            materialization_revision,
+            now_ms,
+        )
+    }
 
+    #[allow(clippy::too_many_arguments)]
+    pub fn initialize_gmail_scope_v2(
+        &self,
+        account_key: &str,
+        credential_locator: &str,
+        scope_id: &str,
+        scope_fingerprint: &str,
+        storage_scope_key: &str,
+        discovery_kind: &str,
+        discovery_value: &str,
+        parser_revision: &str,
+        materialization_revision: &str,
+        now_ms: i64,
+    ) -> Result<(), PlatformError> {
+        let initialization = GmailScopeInitialization {
+            account_key: account_key.to_owned(),
+            credential_locator: credential_locator.to_owned(),
+            scope_id: scope_id.to_owned(),
+            scope_fingerprint: scope_fingerprint.to_owned(),
+            storage_scope_key: storage_scope_key.to_owned(),
+            discovery_kind: discovery_kind.to_owned(),
+            discovery_value: discovery_value.to_owned(),
+            parser_revision: parser_revision.to_owned(),
+            materialization_revision: materialization_revision.to_owned(),
+            created_at_ms: now_ms,
+        };
+        validate_scope_initialization(&initialization)?;
         let mut connection = self.connection()?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        transaction.execute(
-            "INSERT INTO gmail_accounts(
+        initialize_gmail_scope_in_transaction(&transaction, &initialization)?;
+        transaction.commit()?;
+        Ok(())
+    }
+}
+
+fn initialize_gmail_scope_in_transaction(
+    transaction: &Transaction<'_>,
+    initialization: &GmailScopeInitialization,
+) -> Result<(), PlatformError> {
+    transaction.execute(
+        "INSERT INTO gmail_accounts(
                 account_key, credential_locator, created_at_ms
              ) VALUES (?1, ?2, ?3)
              ON CONFLICT(account_key) DO UPDATE SET
@@ -69,47 +127,94 @@ impl Database {
                     THEN excluded.credential_locator
                     ELSE gmail_accounts.credential_locator
                 END",
-            params![account_key, credential_locator, now_ms],
-        )?;
-        let stored_locator: String = transaction.query_row(
-            "SELECT credential_locator FROM gmail_accounts WHERE account_key = ?1",
-            [account_key],
-            |row| row.get(0),
-        )?;
-        if stored_locator != credential_locator {
-            return Err(PlatformError::Conflict("gmail_account_credential"));
-        }
-        transaction.execute(
-            "INSERT INTO gmail_scopes(
+        params![
+            initialization.account_key,
+            initialization.credential_locator,
+            initialization.created_at_ms
+        ],
+    )?;
+    let stored_locator: String = transaction.query_row(
+        "SELECT credential_locator FROM gmail_accounts WHERE account_key = ?1",
+        [&initialization.account_key],
+        |row| row.get(0),
+    )?;
+    if stored_locator != initialization.credential_locator {
+        return Err(PlatformError::Conflict("gmail_account_credential"));
+    }
+    transaction.execute(
+        "INSERT INTO gmail_scopes(
                 scope_id, account_key, scope_fingerprint, label_id, oauth_scope,
-                parser_revision, materialization_revision, created_at_ms
-             ) VALUES (
+                parser_revision, materialization_revision, created_at_ms,
+                discovery_kind, discovery_value
+            ) VALUES (
                 ?1, ?2, ?3, ?4,
                 'openid https://www.googleapis.com/auth/gmail.readonly',
-                ?5, ?6, ?7
+                ?5, ?6, ?7, ?8, ?9
              )
              ON CONFLICT(account_key, scope_fingerprint) DO NOTHING",
-            params![
-                scope_id,
-                account_key,
-                scope_fingerprint,
-                label_id,
-                parser_revision,
-                materialization_revision,
-                now_ms
-            ],
-        )?;
-        let stored: (String, String) = transaction.query_row(
-            "SELECT scope_id, label_id FROM gmail_scopes
+        params![
+            initialization.scope_id,
+            initialization.account_key,
+            initialization.scope_fingerprint,
+            initialization.storage_scope_key,
+            initialization.parser_revision,
+            initialization.materialization_revision,
+            initialization.created_at_ms,
+            initialization.discovery_kind,
+            initialization.discovery_value
+        ],
+    )?;
+    let stored: (String, String, String, String) = transaction.query_row(
+        "SELECT scope_id, label_id, discovery_kind, discovery_value FROM gmail_scopes
              WHERE account_key = ?1 AND scope_fingerprint = ?2",
-            params![account_key, scope_fingerprint],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )?;
-        if stored != (scope_id.to_owned(), label_id.to_owned()) {
-            return Err(PlatformError::Conflict("gmail_scope_identity"));
-        }
-        transaction.commit()?;
+        params![initialization.account_key, initialization.scope_fingerprint],
+        |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+    )?;
+    if stored
+        != (
+            initialization.scope_id.clone(),
+            initialization.storage_scope_key.clone(),
+            initialization.discovery_kind.clone(),
+            initialization.discovery_value.clone(),
+        )
+    {
+        return Err(PlatformError::Conflict("gmail_scope_identity"));
+    }
+    Ok(())
+}
+
+fn validate_scope_initialization(
+    initialization: &GmailScopeInitialization,
+) -> Result<(), PlatformError> {
+    validate_hash(&initialization.account_key)?;
+    validate_hash(&initialization.scope_fingerprint)?;
+    validate_provider_value(&initialization.storage_scope_key)?;
+    validate_discovery(
+        &initialization.discovery_kind,
+        &initialization.discovery_value,
+    )?;
+    validate_revision_name(&initialization.parser_revision)?;
+    validate_revision_name(&initialization.materialization_revision)?;
+    uuid::Uuid::parse_str(&initialization.scope_id)
+        .map_err(|_| PlatformError::InvalidInput("gmail_scope_id"))?;
+    if initialization.credential_locator.is_empty() || initialization.created_at_ms < 0 {
+        return Err(PlatformError::InvalidInput("gmail_scope_initialization"));
+    }
+    Ok(())
+}
+
+fn validate_discovery(kind: &str, value: &str) -> Result<(), PlatformError> {
+    let valid_value =
+        !value.is_empty() && value.len() <= 2048 && !value.chars().any(char::is_control);
+    let valid = match kind {
+        "search" => valid_value,
+        "label" => valid_value && value.chars().count() <= 256,
+        _ => false,
+    };
+    if valid {
         Ok(())
+    } else {
+        Err(PlatformError::InvalidInput("gmail_discovery_scope"))
     }
 }
 
@@ -149,7 +254,7 @@ impl GmailSyncStore for Database {
     }
 
     fn commit(&self, key: &SyncKey, batch: &SyncBatch) -> Result<SyncCommit, SyncError> {
-        commit_batch(self, key, batch, None).map(|value| value.commit)
+        commit_batch(self, key, batch, None, None).map(|value| value.commit)
     }
 }
 
@@ -172,7 +277,54 @@ impl Database {
             account_key,
             scope_id,
         };
-        commit_batch(self, key, batch, Some(context)).map_err(map_sync_port_error)
+        commit_batch(self, key, batch, Some(context), None).map_err(map_sync_port_error)
+    }
+
+    pub fn commit_new_gmail_operation(
+        &self,
+        initialization: &GmailScopeInitialization,
+        batch: &SyncBatch,
+        request_id: &str,
+        envelope: &str,
+        command: GmailSyncCommandKind,
+    ) -> Result<GmailOperationCommit, GmailConnectorPortError> {
+        let key = SyncKey {
+            account_key: initialization.account_key.clone(),
+            scope_id: initialization.scope_id.clone(),
+            label_id: initialization.storage_scope_key.clone(),
+        };
+        let context = GmailOperationContext {
+            request_id,
+            envelope,
+            command,
+            account_key: &initialization.account_key,
+            scope_id: &initialization.scope_id,
+        };
+        commit_batch(self, &key, batch, Some(context), Some(initialization))
+            .map_err(map_sync_port_error)
+    }
+
+    pub(crate) fn recover_gmail_blob_publications(&self) -> PlatformResult<()> {
+        let connection = self.connection()?;
+        BlobStore::new(&self.paths).recover_prepared_operations(
+            "gmail",
+            |sha256, expected_length| {
+                let stored = connection
+                    .query_row(
+                        "SELECT byte_length FROM blobs WHERE sha256 = ?1",
+                        [sha256],
+                        |row| row.get::<_, i64>(0),
+                    )
+                    .optional()?;
+                let Some(stored) = stored else {
+                    return Ok(false);
+                };
+                if stored < 0 || stored as u64 != expected_length {
+                    return Err(PlatformError::Corrupt("gmail_blob_length"));
+                }
+                Ok(true)
+            },
+        )
     }
 }
 
@@ -189,45 +341,84 @@ fn commit_batch(
     key: &SyncKey,
     batch: &SyncBatch,
     operation: Option<GmailOperationContext<'_>>,
+    initialization: Option<&GmailScopeInitialization>,
 ) -> Result<GmailOperationCommit, SyncError> {
-    ensure_scope_key(database, key)?;
-    let prepared = prepare_effects(database, batch)?;
+    if let Some(initialization) = initialization {
+        validate_scope_initialization(initialization)
+            .map_err(|_| SyncError::InvalidConfiguration)?;
+        if key.account_key != initialization.account_key
+            || key.scope_id != initialization.scope_id
+            || key.label_id != initialization.storage_scope_key
+        {
+            return Err(SyncError::InvalidConfiguration);
+        }
+    } else {
+        ensure_scope_key(database, key)?;
+    }
+    let mut staged_publication = BlobStore::new(&database.paths)
+        .begin_prepared_operation("gmail")
+        .map_err(|_| SyncError::Store)?;
+    let prepared = prepare_effects(batch, &mut staged_publication)?;
     let now_ms = unix_now_ms().map_err(|_| SyncError::Store)?;
     let mut connection = database.connection().map_err(|_| SyncError::Store)?;
     let transaction = connection
         .transaction_with_behavior(TransactionBehavior::Immediate)
         .map_err(|_| SyncError::Store)?;
+    let mut publication = staged_publication;
+    if let Some(initialization) = initialization {
+        initialize_gmail_scope_in_transaction(&transaction, initialization)
+            .map_err(|_| SyncError::Store)?;
+    }
+    ensure_scope_key_in_transaction(&transaction, key)?;
     compare_checkpoint(&transaction, key, batch.expected_checkpoint.as_deref())?;
 
     let mut commit = SyncCommit::default();
     for message_id in &batch.discovered_message_ids {
-        let (_, inserted) = ensure_provider_source(&transaction, key, message_id, now_ms)?;
+        let (provider_source_id, inserted) =
+            ensure_provider_source(&transaction, key, message_id, now_ms)?;
         commit.sources_inserted += usize::from(inserted);
+        ensure_scope_membership(&transaction, key, &provider_source_id, now_ms)?;
     }
     for effect in &prepared {
         let (provider_source_id, inserted) =
             ensure_provider_source(&transaction, key, &effect.message_id, now_ms)?;
         commit.sources_inserted += usize::from(inserted);
-        transaction
-            .execute(
-                "INSERT OR IGNORE INTO gmail_scope_sources(
-                    scope_id, provider_source_id, account_key, first_seen_at_ms
-                 ) VALUES (?1, ?2, ?3, ?4)",
-                params![key.scope_id, provider_source_id, key.account_key, now_ms],
-            )
-            .map_err(|_| SyncError::Store)?;
-        let inserted_revision =
-            insert_or_replay_revision(&transaction, &provider_source_id, effect, now_ms)?;
-        if inserted_revision {
+        ensure_scope_membership(&transaction, key, &provider_source_id, now_ms)?;
+        let available_revision_id = if effect.availability == "available" {
+            let (revision_id, _) = insert_or_replay_available_revision(
+                &transaction,
+                &provider_source_id,
+                effect,
+                now_ms,
+            )?;
+            Some(revision_id)
+        } else {
+            None
+        };
+        let inserted_observation = insert_or_replay_scope_observation(
+            &transaction,
+            key,
+            &provider_source_id,
+            effect,
+            available_revision_id.as_deref(),
+            now_ms,
+        )?;
+        advance_scope_head(
+            &transaction,
+            key,
+            &provider_source_id,
+            &effect.history_id,
+            effect.availability,
+            now_ms,
+        )?;
+        if inserted_observation {
             commit.revisions_inserted += 1;
         } else {
             commit.revisions_replayed += 1;
         }
-        if let Some(operation) = operation.as_ref() {
-            let revision_id = stable_id(
-                "gmail-revision",
-                &format!("{provider_source_id}\0{}", effect.history_id),
-            );
+        if let (Some(operation), Some(revision_id)) =
+            (operation.as_ref(), available_revision_id.as_ref())
+        {
             transaction
                 .execute(
                     "INSERT OR IGNORE INTO gmail_operation_revisions(request_id, revision_id)
@@ -269,10 +460,20 @@ fn commit_batch(
         u64::try_from(evidence_generation).map_err(|_| SyncError::Store)?;
     let summary = sync_summary(batch, commit)?;
 
+    publication.publish().map_err(|_| SyncError::Store)?;
+    if take_gmail_publication_failpoint("after_blob_publication") {
+        publication.abandon_for_recovery();
+        return Err(SyncError::Store);
+    }
     if let Some(operation) = operation {
         finish_sync_operation(&transaction, &operation, &summary, now_ms)?;
     }
     transaction.commit().map_err(|_| SyncError::Store)?;
+    if take_gmail_publication_failpoint("staging_manifest_cleanup_failure") {
+        publication.abandon_for_recovery();
+    } else {
+        publication.commit();
+    }
     Ok(GmailOperationCommit { summary, commit })
 }
 
@@ -394,10 +595,9 @@ fn map_sync_port_error(error: SyncError) -> GmailConnectorPortError {
 }
 
 fn prepare_effects(
-    database: &Database,
     batch: &SyncBatch,
+    publication: &mut PreparedBlobOperation,
 ) -> Result<Vec<PreparedEffect>, SyncError> {
-    let blobs = BlobStore::new(&database.paths);
     let mut seen = BTreeSet::new();
     let mut prepared = Vec::with_capacity(batch.effects.len());
     for effect in &batch.effects {
@@ -415,8 +615,8 @@ fn prepare_effects(
                 raw,
             } => {
                 let parts = prepare_message_parts(raw).map_err(|_| SyncError::MalformedResponse)?;
-                let blob = blobs
-                    .put(raw, None, GMAIL_RAW_MESSAGE_LIMIT as u64)
+                let blob = publication
+                    .stage(raw, None, GMAIL_RAW_MESSAGE_LIMIT as u64)
                     .map_err(|_| SyncError::Store)?;
                 let mime_json =
                     serde_json::to_vec(&parts).map_err(|_| SyncError::MalformedResponse)?;
@@ -526,21 +726,142 @@ fn ensure_provider_source(
     Ok((provider_source_id, inserted))
 }
 
-fn insert_or_replay_revision(
+fn ensure_scope_membership(
+    transaction: &Transaction<'_>,
+    key: &SyncKey,
+    provider_source_id: &str,
+    now_ms: i64,
+) -> Result<(), SyncError> {
+    transaction
+        .execute(
+            "INSERT OR IGNORE INTO gmail_scope_sources(
+                scope_id, provider_source_id, account_key, first_seen_at_ms
+             ) VALUES (?1, ?2, ?3, ?4)",
+            params![key.scope_id, provider_source_id, key.account_key, now_ms],
+        )
+        .map_err(|_| SyncError::Store)?;
+    Ok(())
+}
+
+fn insert_or_replay_scope_observation(
+    transaction: &Transaction<'_>,
+    key: &SyncKey,
+    provider_source_id: &str,
+    effect: &PreparedEffect,
+    available_revision_id: Option<&str>,
+    now_ms: i64,
+) -> Result<bool, SyncError> {
+    let inserted = transaction
+        .execute(
+            "INSERT OR IGNORE INTO gmail_scope_availability_observations(
+                scope_id, provider_source_id, account_key, history_id,
+                available_revision_id, availability, reason, observed_at_ms
+             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+            params![
+                key.scope_id,
+                provider_source_id,
+                key.account_key,
+                effect.history_id,
+                available_revision_id,
+                effect.availability,
+                effect.reason,
+                now_ms
+            ],
+        )
+        .map_err(|_| SyncError::Store)?
+        == 1;
+    let stored = transaction
+        .query_row(
+            "SELECT account_key, available_revision_id, availability, reason
+             FROM gmail_scope_availability_observations
+             WHERE scope_id = ?1 AND provider_source_id = ?2 AND history_id = ?3",
+            params![key.scope_id, provider_source_id, effect.history_id],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            },
+        )
+        .map_err(|_| SyncError::Store)?;
+    if stored
+        != (
+            key.account_key.clone(),
+            available_revision_id.map(str::to_owned),
+            effect.availability.to_owned(),
+            effect.reason.to_owned(),
+        )
+    {
+        return Err(SyncError::RevisionCollision);
+    }
+    Ok(inserted)
+}
+
+fn advance_scope_head(
+    transaction: &Transaction<'_>,
+    key: &SyncKey,
+    provider_source_id: &str,
+    history_id: &str,
+    availability: &str,
+    now_ms: i64,
+) -> Result<(), SyncError> {
+    let current = transaction
+        .query_row(
+            "SELECT head_history_id
+             FROM gmail_scope_availability_heads
+             WHERE scope_id = ?1 AND provider_source_id = ?2",
+            params![key.scope_id, provider_source_id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|_| SyncError::Store)?;
+    let should_advance = match current {
+        None => true,
+        Some(current) => HistoryId::parse(history_id.to_owned())? > HistoryId::parse(current)?,
+    };
+    if should_advance {
+        transaction
+            .execute(
+                "INSERT INTO gmail_scope_availability_heads(
+                    scope_id, provider_source_id, account_key, head_history_id,
+                    availability, updated_at_ms
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                 ON CONFLICT(scope_id, provider_source_id) DO UPDATE SET
+                    head_history_id = excluded.head_history_id,
+                    availability = excluded.availability,
+                    updated_at_ms = excluded.updated_at_ms",
+                params![
+                    key.scope_id,
+                    provider_source_id,
+                    key.account_key,
+                    history_id,
+                    availability,
+                    now_ms
+                ],
+            )
+            .map_err(|_| SyncError::Store)?;
+    }
+    Ok(())
+}
+
+fn insert_or_replay_available_revision(
     transaction: &Transaction<'_>,
     provider_source_id: &str,
     effect: &PreparedEffect,
     now_ms: i64,
-) -> Result<bool, SyncError> {
-    let revision_id = stable_id(
-        "gmail-revision",
-        &format!("{provider_source_id}\0{}", effect.history_id),
-    );
-    if let Some(existing) = transaction
+) -> Result<(String, bool), SyncError> {
+    if effect.availability != "available" || effect.blob.is_none() {
+        return Err(SyncError::RevisionCollision);
+    }
+    if let Some((revision_id, reason, graph_sha256)) = transaction
         .query_row(
-            "SELECT availability, reason, graph_sha256
+            "SELECT revision_id, reason, graph_sha256
              FROM gmail_source_revisions
-             WHERE provider_source_id = ?1 AND history_id = ?2",
+             WHERE provider_source_id = ?1
+               AND history_id = ?2
+               AND availability = 'available'",
             params![provider_source_id, effect.history_id],
             |row| {
                 Ok((
@@ -553,17 +874,13 @@ fn insert_or_replay_revision(
         .optional()
         .map_err(|_| SyncError::Store)?
     {
-        if existing
-            != (
-                effect.availability.to_owned(),
-                effect.reason.to_owned(),
-                effect.graph_sha256.clone(),
-            )
+        if reason != effect.reason
+            || graph_sha256 != effect.graph_sha256
             || !materialization_matches(transaction, &revision_id, effect)?
         {
             return Err(SyncError::RevisionCollision);
         }
-        advance_head(
+        advance_available_head(
             transaction,
             provider_source_id,
             &revision_id,
@@ -571,9 +888,13 @@ fn insert_or_replay_revision(
             effect.availability,
             now_ms,
         )?;
-        return Ok(false);
+        return Ok((revision_id, false));
     }
 
+    let revision_id = stable_id(
+        "gmail-available-revision",
+        &format!("{provider_source_id}\0{}", effect.history_id),
+    );
     transaction
         .execute(
             "INSERT INTO gmail_source_revisions(
@@ -660,7 +981,7 @@ fn insert_or_replay_revision(
             ],
         )
         .map_err(|_| SyncError::Store)?;
-    advance_head(
+    advance_available_head(
         transaction,
         provider_source_id,
         &revision_id,
@@ -668,7 +989,7 @@ fn insert_or_replay_revision(
         effect.availability,
         now_ms,
     )?;
-    Ok(true)
+    Ok((revision_id, true))
 }
 
 fn materialization_matches(
@@ -902,7 +1223,7 @@ fn insert_parts(
     Ok(())
 }
 
-fn advance_head(
+fn advance_available_head(
     transaction: &Transaction<'_>,
     provider_source_id: &str,
     revision_id: &str,
@@ -949,7 +1270,7 @@ fn advance_head(
 
 fn insert_blob(
     transaction: &Transaction<'_>,
-    blob: &BlobRecord,
+    blob: &PreparedBlobMetadata,
     now_ms: i64,
 ) -> Result<(), SyncError> {
     transaction
@@ -973,9 +1294,22 @@ fn insert_blob(
 }
 
 fn ensure_scope_key(database: &Database, key: &SyncKey) -> Result<(), SyncError> {
-    let stored = database
-        .connection()
-        .map_err(|_| SyncError::Store)?
+    let connection = database.connection().map_err(|_| SyncError::Store)?;
+    ensure_scope_key_on_connection(&connection, key)
+}
+
+fn ensure_scope_key_in_transaction(
+    transaction: &Transaction<'_>,
+    key: &SyncKey,
+) -> Result<(), SyncError> {
+    ensure_scope_key_on_connection(transaction, key)
+}
+
+fn ensure_scope_key_on_connection(
+    connection: &rusqlite::Connection,
+    key: &SyncKey,
+) -> Result<(), SyncError> {
+    let stored = connection
         .query_row(
             "SELECT account_key, label_id FROM gmail_scopes WHERE scope_id = ?1",
             [&key.scope_id],
@@ -1033,6 +1367,39 @@ fn unix_now_ms() -> Result<i64, PlatformError> {
         .duration_since(std::time::UNIX_EPOCH)
         .map_err(|_| PlatformError::Corrupt("system_clock"))?;
     i64::try_from(duration.as_millis()).map_err(|_| PlatformError::Corrupt("system_clock"))
+}
+
+#[cfg(test)]
+thread_local! {
+    static GMAIL_PUBLICATION_FAILPOINT: std::cell::RefCell<Option<&'static str>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+fn set_gmail_publication_failpoint(name: &'static str) {
+    GMAIL_PUBLICATION_FAILPOINT.with(|failpoint| {
+        *failpoint.borrow_mut() = Some(name);
+    });
+}
+
+fn take_gmail_publication_failpoint(name: &'static str) -> bool {
+    #[cfg(test)]
+    {
+        return GMAIL_PUBLICATION_FAILPOINT.with(|failpoint| {
+            let mut failpoint = failpoint.borrow_mut();
+            if *failpoint == Some(name) {
+                failpoint.take();
+                true
+            } else {
+                false
+            }
+        });
+    }
+    #[cfg(not(test))]
+    {
+        let _ = name;
+        false
+    }
 }
 
 #[cfg(test)]
@@ -1095,7 +1462,7 @@ mod tests {
     }
 
     #[test]
-    fn revisions_own_distinct_graphs_and_future_head_does_not_advance_checkpoint() {
+    fn available_revision_owns_graph_and_stale_scope_event_does_not_advance_heads() {
         let (_temporary, database, key) = database();
         let raw =
             b"From: shop@example.com\r\nSubject: receipt\r\nContent-Type: image/png\r\n\r\nraw";
@@ -1142,7 +1509,7 @@ mod tests {
                     |row| row.get::<_, i64>(0)
                 )
                 .unwrap(),
-            2
+            1
         );
         assert_eq!(
             connection
@@ -1156,6 +1523,30 @@ mod tests {
                 )
                 .unwrap(),
             "25"
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT head_history_id, availability
+                     FROM gmail_scope_availability_heads
+                     WHERE scope_id = ?1",
+                    [&key.scope_id],
+                    |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+                )
+                .unwrap(),
+            ("25".into(), "available".into())
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*)
+                     FROM gmail_scope_availability_observations
+                     WHERE scope_id = ?1",
+                    [&key.scope_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            2
         );
     }
 
@@ -1275,6 +1666,9 @@ mod tests {
         let envelope = &"d".repeat(64);
         let raw =
             b"From: shop@example.com\r\nSubject: receipt\r\nContent-Type: image/png\r\n\r\nraw";
+        let staged_blob_path = BlobStore::new(&database.paths)
+            .path_for_hash(&digest(raw))
+            .unwrap();
         seed_sync_operation(&database, request_id, envelope);
         database
             .connection()
@@ -1362,6 +1756,7 @@ mod tests {
                 .unwrap(),
             0
         );
+        assert!(!staged_blob_path.exists());
     }
 
     #[test]
@@ -1421,5 +1816,405 @@ mod tests {
             Err(SyncError::RevisionCollision)
         );
         assert_eq!(database.checkpoint(&key).unwrap().as_deref(), Some("10"));
+    }
+
+    #[test]
+    fn label_removal_does_not_hide_overlapping_search_scope() {
+        let (_temporary, database, label_key) = database();
+        let search_key = SyncKey {
+            account_key: label_key.account_key.clone(),
+            scope_id: "66666666-6666-4666-8666-666666666666".into(),
+            label_id: "SEARCH".into(),
+        };
+        database
+            .initialize_gmail_scope_v2(
+                &search_key.account_key,
+                "gmail-test-locator",
+                &search_key.scope_id,
+                &"e".repeat(64),
+                &search_key.label_id,
+                "search",
+                "from:shop@example.com",
+                "bounded-mime-v1",
+                "gmail-materialization-v1",
+                3,
+            )
+            .unwrap();
+        let raw = b"From: shop@example.com\r\nSubject: shared receipt\r\n\r\nshared";
+        let available = |expected_checkpoint| SyncBatch {
+            mode: crate::SyncMode::Reconciled,
+            expected_checkpoint,
+            next_checkpoint: HistoryId::parse("10").unwrap(),
+            discovered_message_ids: vec!["shared-message".into()],
+            effects: vec![RevisionEffect::Available {
+                message_id: "shared-message".into(),
+                revision: HistoryId::parse("10").unwrap(),
+                raw: raw.to_vec(),
+            }],
+            pages: 1,
+            gateway_calls: 3,
+            raw_bytes: raw.len(),
+        };
+        database.commit(&label_key, &available(None)).unwrap();
+        database.commit(&search_key, &available(None)).unwrap();
+        database
+            .commit(
+                &label_key,
+                &SyncBatch {
+                    mode: crate::SyncMode::Incremental,
+                    expected_checkpoint: Some("10".into()),
+                    next_checkpoint: HistoryId::parse("11").unwrap(),
+                    discovered_message_ids: vec![],
+                    effects: vec![RevisionEffect::Unavailable {
+                        message_id: "shared-message".into(),
+                        revision: HistoryId::parse("11").unwrap(),
+                        reason: UnavailableReason::LabelRemoved,
+                    }],
+                    pages: 1,
+                    gateway_calls: 1,
+                    raw_bytes: 0,
+                },
+            )
+            .unwrap();
+
+        let connection = database.connection().unwrap();
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM gmail_source_revisions", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM gmail_revision_materializations",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1
+        );
+        let scope_head = |scope_id: &str| {
+            connection
+                .query_row(
+                    "SELECT availability
+                     FROM gmail_scope_availability_heads
+                     WHERE scope_id = ?1",
+                    [scope_id],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap()
+        };
+        assert_eq!(scope_head(&label_key.scope_id), "unavailable");
+        assert_eq!(scope_head(&search_key.scope_id), "available");
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*)
+                     FROM gmail_scope_availability_observations",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            3
+        );
+    }
+
+    #[test]
+    fn interrupted_publication_is_removed_on_reopen_and_retry_succeeds() {
+        let (temporary, database, key) = database();
+        let paths = database.paths.clone();
+        let raw = b"From: shop@example.com\r\nSubject: interrupted\r\n\r\nraw";
+        let batch = SyncBatch {
+            mode: crate::SyncMode::Reconciled,
+            expected_checkpoint: None,
+            next_checkpoint: HistoryId::parse("10").unwrap(),
+            discovered_message_ids: vec!["m1".into()],
+            effects: vec![RevisionEffect::Available {
+                message_id: "m1".into(),
+                revision: HistoryId::parse("10").unwrap(),
+                raw: raw.to_vec(),
+            }],
+            pages: 1,
+            gateway_calls: 3,
+            raw_bytes: raw.len(),
+        };
+        let final_path = BlobStore::new(&paths).path_for_hash(&digest(raw)).unwrap();
+        set_gmail_publication_failpoint("after_blob_publication");
+        assert_eq!(database.commit(&key, &batch), Err(SyncError::Store));
+        assert!(final_path.exists());
+        assert_eq!(database.checkpoint(&key).unwrap(), None);
+        drop(database);
+
+        let reopened = Database::open(&paths, 20).unwrap();
+        assert!(!final_path.exists());
+        assert_eq!(
+            std::fs::read_dir(&paths.staging)
+                .unwrap()
+                .filter(|entry| {
+                    entry
+                        .as_ref()
+                        .ok()
+                        .and_then(|entry| entry.file_name().to_str().map(str::to_owned))
+                        .is_some_and(|name| name.starts_with(".gmail-publication-"))
+                })
+                .count(),
+            0
+        );
+        reopened.commit(&key, &batch).unwrap();
+        assert!(BlobStore::new(&paths).verify(&digest(raw)).is_ok());
+        drop(temporary);
+    }
+
+    #[test]
+    fn committed_cleanup_failure_returns_success_and_recovers_manifest() {
+        let (_temporary, database, key) = database();
+        let paths = database.paths.clone();
+        let raw = b"From: shop@example.com\r\nSubject: committed\r\n\r\nraw";
+        let batch = SyncBatch {
+            mode: crate::SyncMode::Reconciled,
+            expected_checkpoint: None,
+            next_checkpoint: HistoryId::parse("10").unwrap(),
+            discovered_message_ids: vec!["m1".into()],
+            effects: vec![RevisionEffect::Available {
+                message_id: "m1".into(),
+                revision: HistoryId::parse("10").unwrap(),
+                raw: raw.to_vec(),
+            }],
+            pages: 1,
+            gateway_calls: 3,
+            raw_bytes: raw.len(),
+        };
+        set_gmail_publication_failpoint("staging_manifest_cleanup_failure");
+        database.commit(&key, &batch).unwrap();
+        assert_eq!(
+            std::fs::read_dir(&paths.staging)
+                .unwrap()
+                .filter(|entry| {
+                    entry
+                        .as_ref()
+                        .ok()
+                        .and_then(|entry| entry.file_name().to_str().map(str::to_owned))
+                        .is_some_and(|name| name.starts_with(".gmail-publication-"))
+                })
+                .count(),
+            1
+        );
+        drop(database);
+
+        let reopened = Database::open(&paths, 20).unwrap();
+        assert!(BlobStore::new(&paths).verify(&digest(raw)).is_ok());
+        assert_eq!(reopened.checkpoint(&key).unwrap().as_deref(), Some("10"));
+        assert_eq!(
+            std::fs::read_dir(&paths.staging)
+                .unwrap()
+                .filter(|entry| {
+                    entry
+                        .as_ref()
+                        .ok()
+                        .and_then(|entry| entry.file_name().to_str().map(str::to_owned))
+                        .is_some_and(|name| name.starts_with(".gmail-publication-"))
+                })
+                .count(),
+            0
+        );
+    }
+
+    #[test]
+    fn failed_publication_never_removes_preexisting_same_hash_blob() {
+        let (_temporary, database, key) = database();
+        let request_id = "77777777-7777-4777-8777-777777777777";
+        let envelope = &"f".repeat(64);
+        let raw = b"From: shop@example.com\r\nSubject: shared raw\r\n\r\nraw";
+        let store = BlobStore::new(&database.paths);
+        let preexisting = store.put(raw, None, 1024).unwrap();
+        seed_sync_operation(&database, request_id, envelope);
+        database
+            .connection()
+            .unwrap()
+            .execute(
+                "INSERT INTO command_receipts(
+                    request_id, command_name, envelope_hash, response_json, created_at_ms
+                 ) VALUES (?1, 'conflicting_command', ?2, '{}', 3)",
+                params![request_id, envelope],
+            )
+            .unwrap();
+        let batch = SyncBatch {
+            mode: crate::SyncMode::Reconciled,
+            expected_checkpoint: None,
+            next_checkpoint: HistoryId::parse("10").unwrap(),
+            discovered_message_ids: vec!["m1".into()],
+            effects: vec![RevisionEffect::Available {
+                message_id: "m1".into(),
+                revision: HistoryId::parse("10").unwrap(),
+                raw: raw.to_vec(),
+            }],
+            pages: 1,
+            gateway_calls: 3,
+            raw_bytes: raw.len(),
+        };
+        assert!(database
+            .commit_gmail_operation(
+                &key,
+                &batch,
+                request_id,
+                envelope,
+                GmailSyncCommandKind::Sync,
+                &key.account_key,
+                &key.scope_id,
+            )
+            .is_err());
+        assert_eq!(
+            store.verify(&preexisting.sha256).unwrap().path,
+            preexisting.path
+        );
+    }
+
+    #[test]
+    fn first_scope_and_account_roll_back_with_failed_publication() {
+        let temporary = tempfile::tempdir().unwrap();
+        let paths = PrivateAppPaths::create(temporary.path().join("app")).unwrap();
+        let database = Database::open(&paths, 1).unwrap();
+        let request_id = "88888888-8888-4888-8888-888888888888";
+        let envelope = &"9".repeat(64);
+        seed_sync_operation(&database, request_id, envelope);
+        database
+            .connection()
+            .unwrap()
+            .execute(
+                "INSERT INTO command_receipts(
+                    request_id, command_name, envelope_hash, response_json, created_at_ms
+                 ) VALUES (?1, 'conflicting_command', ?2, '{}', 3)",
+                params![request_id, envelope],
+            )
+            .unwrap();
+        let initialization = GmailScopeInitialization {
+            account_key: "1".repeat(64),
+            credential_locator: "new-gmail-locator".into(),
+            scope_id: "99999999-9999-4999-8999-999999999999".into(),
+            scope_fingerprint: "2".repeat(64),
+            storage_scope_key: "SEARCH".into(),
+            discovery_kind: "search".into(),
+            discovery_value: "has:attachment".into(),
+            parser_revision: "bounded-mime-v1".into(),
+            materialization_revision: "gmail-materialization-v1".into(),
+            created_at_ms: 2,
+        };
+        let raw = b"From: shop@example.com\r\nSubject: new scope\r\n\r\nraw";
+        let batch = SyncBatch {
+            mode: crate::SyncMode::Reconciled,
+            expected_checkpoint: None,
+            next_checkpoint: HistoryId::parse("10").unwrap(),
+            discovered_message_ids: vec!["m1".into()],
+            effects: vec![RevisionEffect::Available {
+                message_id: "m1".into(),
+                revision: HistoryId::parse("10").unwrap(),
+                raw: raw.to_vec(),
+            }],
+            pages: 1,
+            gateway_calls: 3,
+            raw_bytes: raw.len(),
+        };
+        assert!(database
+            .commit_new_gmail_operation(
+                &initialization,
+                &batch,
+                request_id,
+                envelope,
+                GmailSyncCommandKind::Connect,
+            )
+            .is_err());
+        let connection = database.connection().unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT
+                       (SELECT COUNT(*) FROM gmail_accounts)
+                     + (SELECT COUNT(*) FROM gmail_scopes)
+                     + (SELECT COUNT(*) FROM gmail_provider_sources)
+                     + (SELECT COUNT(*) FROM gmail_source_revisions)",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0
+        );
+        assert!(!BlobStore::new(&paths)
+            .path_for_hash(&digest(raw))
+            .unwrap()
+            .exists());
+    }
+
+    #[test]
+    fn later_search_scan_retains_sources_absent_from_current_results() {
+        let (_temporary, database, key) = database();
+        let first_raw = b"From: shop@example.com\r\nSubject: first receipt\r\n\r\nfirst";
+        let first = SyncBatch {
+            mode: crate::SyncMode::Reconciled,
+            expected_checkpoint: None,
+            next_checkpoint: HistoryId::parse("10").unwrap(),
+            discovered_message_ids: vec!["m1".into()],
+            effects: vec![RevisionEffect::Available {
+                message_id: "m1".into(),
+                revision: HistoryId::parse("8").unwrap(),
+                raw: first_raw.to_vec(),
+            }],
+            pages: 1,
+            gateway_calls: 3,
+            raw_bytes: first_raw.len(),
+        };
+        database.commit(&key, &first).unwrap();
+
+        let second_raw = b"From: shop@example.com\r\nSubject: second receipt\r\n\r\nsecond";
+        let second = SyncBatch {
+            mode: crate::SyncMode::Reconciled,
+            expected_checkpoint: Some("10".into()),
+            next_checkpoint: HistoryId::parse("11").unwrap(),
+            discovered_message_ids: vec!["m2".into()],
+            effects: vec![RevisionEffect::Available {
+                message_id: "m2".into(),
+                revision: HistoryId::parse("9").unwrap(),
+                raw: second_raw.to_vec(),
+            }],
+            pages: 1,
+            gateway_calls: 3,
+            raw_bytes: second_raw.len(),
+        };
+        database.commit(&key, &second).unwrap();
+
+        let connection = database.connection().unwrap();
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM gmail_provider_sources", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            2
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM gmail_scope_sources", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            2
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT head.availability
+                     FROM gmail_source_heads head
+                     JOIN gmail_provider_sources source
+                       ON source.provider_source_id = head.provider_source_id
+                     WHERE source.gmail_message_id = 'm1'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "available"
+        );
+        assert_eq!(database.checkpoint(&key).unwrap().as_deref(), Some("11"));
     }
 }

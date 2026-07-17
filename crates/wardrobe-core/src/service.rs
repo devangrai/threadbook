@@ -30,19 +30,19 @@ use crate::{
     DisablePhotoKitV1Response, DisconnectGmailV1Request, DisconnectGmailV1Response, ErrorCodeV1,
     EvidenceDecisionActionV1, EvidenceStateV1, FoundationSnapshotV1,
     GetFoundationSnapshotV1Request, GetFoundationSnapshotV1Response, GetGmailConnectorV1Request,
-    GetGmailConnectorV1Response, GetOutfitCollageV1Request, GetOutfitCollageV1Response,
-    GetPhotoKitConnectorV1Request, GetPhotoKitConnectorV1Response, GmailConnectorPort,
-    GmailConnectorPortError, GmailConnectorPortErrorKind, ImportLocalSourcesV1Request,
-    ImportLocalSourcesV1Response, InboxStateV1, ListCatalogV1Request, ListCatalogV1Response,
-    ListDeletionPlanItemsV1Request, ListDeletionPlanItemsV1Response,
-    ListImportedPhotoRootsV1Request, ListImportedPhotoRootsV1Response, ListInboxV1Request,
-    ListInboxV1Response, ListOutfitsV1Request, ListOutfitsV1Response,
-    ListPhotoObservationsV1Request, ListPhotoObservationsV1Response,
-    ListPhotoOwnerReviewsV1Request, ListPhotoOwnerReviewsV1Response,
-    ListReceiptImageCandidatesV1Request, ListReceiptImageCandidatesV1Response,
-    ListReceiptsV1Request, ListReceiptsV1Response, ListReconciliationCasesV2Request,
-    ListReconciliationCasesV2Response, MergeItemsV1Request, MergeItemsV1Response,
-    OpenReconciliationCaseV1Request, OpenReconciliationCaseV1Response,
+    GetGmailConnectorV1Response, GetGmailConnectorV2Request, GetGmailConnectorV2Response,
+    GetOutfitCollageV1Request, GetOutfitCollageV1Response, GetPhotoKitConnectorV1Request,
+    GetPhotoKitConnectorV1Response, GmailConnectorPort, GmailConnectorPortError,
+    GmailConnectorPortErrorKind, ImportLocalSourcesV1Request, ImportLocalSourcesV1Response,
+    InboxStateV1, ListCatalogV1Request, ListCatalogV1Response, ListDeletionPlanItemsV1Request,
+    ListDeletionPlanItemsV1Response, ListImportedPhotoRootsV1Request,
+    ListImportedPhotoRootsV1Response, ListInboxV1Request, ListInboxV1Response,
+    ListOutfitsV1Request, ListOutfitsV1Response, ListPhotoObservationsV1Request,
+    ListPhotoObservationsV1Response, ListPhotoOwnerReviewsV1Request,
+    ListPhotoOwnerReviewsV1Response, ListReceiptImageCandidatesV1Request,
+    ListReceiptImageCandidatesV1Response, ListReceiptsV1Request, ListReceiptsV1Response,
+    ListReconciliationCasesV2Request, ListReconciliationCasesV2Response, MergeItemsV1Request,
+    MergeItemsV1Response, OpenReconciliationCaseV1Request, OpenReconciliationCaseV1Response,
     OpenReconciliationCaseV2Request, OpenReconciliationCaseV2Response, PhotoKitReconcileTriggerV1,
     PhotoReviewActionV1, PreviewDeletionV1Request, PreviewDeletionV1Response,
     PromptPhotoObservationV1Request, PromptPhotoObservationV1Response, ReadPhotoArtifactV1Request,
@@ -52,10 +52,11 @@ use crate::{
     ReviewPhotoObservationV1Request, ReviewPhotoObservationV1Response, ReviewReceiptV1Request,
     ReviewReceiptV1Response, RunStorageCheckV1Request, RunStorageCheckV1Response,
     SaveCredentialV1Request, SaveCredentialV1Response, SaveGmailSettingsV1Request,
-    SaveGmailSettingsV1Response, SaveItemV1Request, SaveItemV1Response, SplitItemV1Request,
-    SplitItemV1Response, SyncGmailV1Request, SyncGmailV1Response, SyncPhotoKitV1Request,
-    SyncPhotoKitV1Response, UndoDecisionV1Request, UndoDecisionV1Response, UserActionKeyV1,
-    Validate, MAX_RECENT_JOBS, SCHEMA_VERSION_V1, STORAGE_CHECK_BYTES,
+    SaveGmailSettingsV1Response, SaveGmailSettingsV2Request, SaveGmailSettingsV2Response,
+    SaveItemV1Request, SaveItemV1Response, SplitItemV1Request, SplitItemV1Response,
+    SyncGmailV1Request, SyncGmailV1Response, SyncPhotoKitV1Request, SyncPhotoKitV1Response,
+    UndoDecisionV1Request, UndoDecisionV1Response, UserActionKeyV1, Validate, MAX_RECENT_JOBS,
+    SCHEMA_VERSION_V1, STORAGE_CHECK_BYTES,
 };
 
 pub struct ApplicationService<D, B, C, R = (), I = (), S = (), G = (), P = ()> {
@@ -302,6 +303,43 @@ where
         {
             return Err(internal_data_error());
         }
+        Ok(response)
+    }
+
+    pub fn get_gmail_connector_v2(
+        &self,
+        request: GetGmailConnectorV2Request,
+    ) -> CommandResult<GetGmailConnectorV2Response> {
+        request.validate().map_err(CommandErrorV1::from)?;
+        let response = self
+            .gmail_connector
+            .get_gmail_connector_v2(&request)
+            .map_err(map_gmail_connector_error)?;
+        if response.schema_version != 2 || response.request_id != request.request_id {
+            return Err(internal_data_error());
+        }
+        response.validate().map_err(|_| internal_data_error())?;
+        Ok(response)
+    }
+
+    pub fn save_gmail_settings_v2(
+        &self,
+        request: SaveGmailSettingsV2Request,
+    ) -> CommandResult<SaveGmailSettingsV2Response> {
+        request.validate().map_err(CommandErrorV1::from)?;
+        let response = self
+            .gmail_connector
+            .save_gmail_settings_v2(&request)
+            .map_err(map_gmail_connector_error)?;
+        if response.schema_version != 2
+            || response.request_id != request.request_id
+            || response.settings.oauth_client_id != request.client_id
+            || response.settings.discovery_scope != request.discovery_scope
+            || response.settings.limits != request.limits
+        {
+            return Err(internal_data_error());
+        }
+        response.validate().map_err(|_| internal_data_error())?;
         Ok(response)
     }
 
@@ -762,6 +800,17 @@ where
             DeletionDependencyClassV1::RemoteReferences,
             DeletionDependencyClassV1::RetainedSharedBlobs,
         ];
+        let has_retained_shared_records = response
+            .counts
+            .iter()
+            .any(|count| count.class == DeletionDependencyClassV1::RetainedSharedRecords);
+        let mut unique_classes = response
+            .counts
+            .iter()
+            .map(|count| count.class)
+            .collect::<Vec<_>>();
+        unique_classes.sort_unstable();
+        unique_classes.dedup();
         let retained_count = response
             .counts
             .iter()
@@ -770,10 +819,18 @@ where
         let overall = response
             .counts
             .iter()
-            .filter(|count| count.class != DeletionDependencyClassV1::RetainedSharedBlobs)
+            .filter(|count| {
+                !matches!(
+                    count.class,
+                    DeletionDependencyClassV1::RetainedSharedBlobs
+                        | DeletionDependencyClassV1::RetainedSharedRecords
+                )
+            })
             .try_fold(0_u64, |total, count| total.checked_add(count.count));
         if response.validate().is_err()
-            || response.counts.len() != expected_classes.len()
+            || response.counts.len()
+                != expected_classes.len() + usize::from(has_retained_shared_records)
+            || unique_classes.len() != response.counts.len()
             || !expected_classes
                 .iter()
                 .all(|class| response.counts.iter().any(|count| count.class == *class))
@@ -1456,8 +1513,11 @@ where
                     ReplayStatusV1::Created,
                     Some(&envelope),
                 )?;
+                let expected_review_head = preserved_review_head.as_ref().filter(|head| {
+                    head.decision.order_evidence_id == response.order.order_evidence_id
+                });
                 if response.parsed != parsed
-                    || response.order.review_head != preserved_review_head
+                    || response.order.review_head.as_ref() != expected_review_head
                     || !response.order.matches_extraction(&envelope.output)
                 {
                     return Err(internal_data_error());
@@ -1490,6 +1550,83 @@ where
             || response.decision.corrected_order != request.corrected_order
             || response.decision.receipt_revision != response.new_receipt_revision
             || response.order.state() != request.action.state()
+        {
+            return Err(internal_data_error());
+        }
+        Ok(response)
+    }
+}
+
+impl<D, B, C, R, I, S, G, P> ApplicationService<D, B, C, R, I, S, G, P>
+where
+    D: crate::ReceiptPromotionPort,
+{
+    pub fn list_receipt_purchase_units_v1(
+        &self,
+        request: crate::ListReceiptPurchaseUnitsV1Request,
+    ) -> CommandResult<crate::ListReceiptPurchaseUnitsV1Response> {
+        request.validate().map_err(CommandErrorV1::from)?;
+        let response = self
+            .database
+            .list_receipt_purchase_units(&request)
+            .map_err(map_receipt_error)?;
+        validate_response_header(
+            response.schema_version,
+            response.request_id,
+            request.request_id,
+        )?;
+        let page_count = response.units.len().checked_add(response.exclusions.len());
+        if response.validate().is_err()
+            || page_count.is_none_or(|count| count > usize::from(request.limit))
+            || response.units.iter().any(|unit| {
+                request
+                    .source_id
+                    .is_some_and(|source_id| unit.authority.source_id != source_id)
+                    || request
+                        .status
+                        .is_some_and(|status| unit.status.filter() != status)
+                    || unit.catalog_revision != response.snapshot.catalog_revision
+                    || unit.evidence_generation != response.snapshot.evidence_generation
+                    || unit.authority.receipt_revision > response.snapshot.receipt_revision
+            })
+            || response.exclusions.iter().any(|exclusion| {
+                request
+                    .source_id
+                    .is_some_and(|source_id| exclusion.source_id != source_id)
+            })
+        {
+            return Err(internal_data_error());
+        }
+        Ok(response)
+    }
+
+    pub fn promote_receipt_purchase_unit_v1(
+        &self,
+        request: crate::PromoteReceiptPurchaseUnitV1Request,
+    ) -> CommandResult<crate::PromoteReceiptPurchaseUnitV1Response> {
+        request.validate().map_err(CommandErrorV1::from)?;
+        let response = self
+            .database
+            .promote_receipt_purchase_unit(&request)
+            .map_err(map_receipt_error)?;
+        validate_response_header(
+            response.schema_version,
+            response.request_id,
+            request.request_id,
+        )?;
+        if response.validate().is_err()
+            || response.unit.purchase_unit_id != request.purchase_unit_id
+            || Some(response.unit.purchase_unit_revision)
+                != request.resulting_purchase_unit_revision()
+            || response.unit.unit_snapshot_sha256 != request.expected_unit_snapshot_sha256
+            || response.authority_snapshot.snapshot_sha256 != request.expected_unit_snapshot_sha256
+            || response.unit.authority.authority_id != request.expected_authority_id
+            || response.unit.authority.authority_revision != request.expected_authority_revision
+            || response.unit.authority.receipt_revision != request.expected_receipt_revision
+            || response.unit.authority.review_decision_id != request.expected_review_decision_id
+            || response.item.attributes != request.attributes
+            || Some(response.new_catalog_revision)
+                != request.expected_catalog_revision.checked_add(1)
         {
             return Err(internal_data_error());
         }

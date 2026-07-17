@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-promote-receipt-purchase-unit-v1"
+description = "Enables the promote_receipt_purchase_unit_v1 command without any pre-configured scope."
+commands.allow = ["promote_receipt_purchase_unit_v1"]
+
+[[permission]]
+identifier = "deny-promote-receipt-purchase-unit-v1"
+description = "Denies the promote_receipt_purchase_unit_v1 command without any pre-configured scope."
+commands.deny = ["promote_receipt_purchase_unit_v1"]

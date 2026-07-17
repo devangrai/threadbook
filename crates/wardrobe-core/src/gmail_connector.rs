@@ -7,6 +7,7 @@ use crate::{ReplayStatusV1, RequestId, SafeFieldV1, UserActionKeyV1, Validate, V
 
 pub const MAX_GMAIL_OAUTH_CLIENT_ID_BYTES: usize = 256;
 pub const MAX_GMAIL_LABEL_NAME_CHARS: usize = 80;
+pub const MAX_GMAIL_QUERY_BYTES: usize = 2048;
 pub const MAX_GMAIL_PAGE_SIZE: u16 = 100;
 pub const MAX_GMAIL_PAGES: u8 = 10;
 pub const MAX_GMAIL_UNIQUE_MESSAGES: u16 = 200;
@@ -72,6 +73,45 @@ pub struct GmailConnectorSettingsV1 {
     pub oauth_client_id: String,
     pub label_name: String,
     pub limits: GmailConnectorLimitsV1,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[ts(tag = "kind", rename_all = "snake_case")]
+pub enum GmailDiscoveryScopeV2 {
+    Search { query: String },
+    Label { label_name: String },
+}
+
+impl Validate for GmailDiscoveryScopeV2 {
+    fn validate(&self) -> Result<(), ValidationError> {
+        match self {
+            Self::Search { query } => validate_gmail_query(query),
+            Self::Label { label_name } => validate_bounded_text(
+                label_name,
+                1,
+                MAX_GMAIL_LABEL_NAME_CHARS,
+                SafeFieldV1::GmailLabelName,
+            ),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(deny_unknown_fields)]
+pub struct GmailConnectorSettingsV2 {
+    pub provider_profile: GmailProviderProfileV1,
+    pub oauth_client_id: String,
+    pub discovery_scope: GmailDiscoveryScopeV2,
+    pub limits: GmailConnectorLimitsV1,
+}
+
+impl Validate for GmailConnectorSettingsV2 {
+    fn validate(&self) -> Result<(), ValidationError> {
+        validate_oauth_client_id(&self.oauth_client_id)?;
+        self.discovery_scope.validate()?;
+        self.limits.validate()
+    }
 }
 
 impl Validate for GmailConnectorSettingsV1 {
@@ -154,6 +194,42 @@ pub struct SaveGmailSettingsV1Request {
     pub limits: GmailConnectorLimitsV1,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(deny_unknown_fields)]
+pub struct GetGmailConnectorV2Request {
+    #[serde(deserialize_with = "deserialize_schema_version_v2")]
+    #[ts(type = "2")]
+    pub schema_version: u8,
+    pub request_id: RequestId,
+}
+
+impl Validate for GetGmailConnectorV2Request {
+    fn validate(&self) -> Result<(), ValidationError> {
+        require_schema_v2(self.schema_version)
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(deny_unknown_fields)]
+pub struct SaveGmailSettingsV2Request {
+    #[serde(deserialize_with = "deserialize_schema_version_v2")]
+    #[ts(type = "2")]
+    pub schema_version: u8,
+    pub request_id: RequestId,
+    pub client_id: String,
+    pub discovery_scope: GmailDiscoveryScopeV2,
+    pub limits: GmailConnectorLimitsV1,
+}
+
+impl Validate for SaveGmailSettingsV2Request {
+    fn validate(&self) -> Result<(), ValidationError> {
+        require_schema_v2(self.schema_version)?;
+        validate_oauth_client_id(&self.client_id)?;
+        self.discovery_scope.validate()?;
+        self.limits.validate()
+    }
+}
+
 impl Validate for SaveGmailSettingsV1Request {
     fn validate(&self) -> Result<(), ValidationError> {
         require_schema_v1(self.schema_version)?;
@@ -180,6 +256,28 @@ pub struct GetGmailConnectorV1Response {
     pub user_action: UserActionKeyV1,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(deny_unknown_fields)]
+pub struct GetGmailConnectorV2Response {
+    #[serde(deserialize_with = "deserialize_schema_version_v2")]
+    #[ts(type = "2")]
+    pub schema_version: u8,
+    pub request_id: RequestId,
+    pub settings: Option<GmailConnectorSettingsV2>,
+    pub status: GmailConnectorStatusV1,
+    pub user_action: UserActionKeyV1,
+}
+
+impl Validate for GetGmailConnectorV2Response {
+    fn validate(&self) -> Result<(), ValidationError> {
+        require_schema_v2(self.schema_version)?;
+        if let Some(settings) = &self.settings {
+            settings.validate()?;
+        }
+        validate_status(self.status, self.user_action, self.settings.is_some())
+    }
+}
+
 impl Validate for GetGmailConnectorV1Response {
     fn validate(&self) -> Result<(), ValidationError> {
         require_schema_v1(self.schema_version)?;
@@ -201,6 +299,32 @@ pub struct SaveGmailSettingsV1Response {
     pub status: GmailConnectorStatusV1,
     pub user_action: UserActionKeyV1,
     pub replay_status: ReplayStatusV1,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, TS)]
+#[serde(deny_unknown_fields)]
+pub struct SaveGmailSettingsV2Response {
+    #[serde(deserialize_with = "deserialize_schema_version_v2")]
+    #[ts(type = "2")]
+    pub schema_version: u8,
+    pub request_id: RequestId,
+    pub settings: GmailConnectorSettingsV2,
+    pub status: GmailConnectorStatusV1,
+    pub user_action: UserActionKeyV1,
+    pub replay_status: ReplayStatusV1,
+}
+
+impl Validate for SaveGmailSettingsV2Response {
+    fn validate(&self) -> Result<(), ValidationError> {
+        require_schema_v2(self.schema_version)?;
+        self.settings.validate()?;
+        validate_terminal_status(
+            self.status,
+            GmailConnectorStatusV1::Disconnected,
+            self.user_action,
+            UserActionKeyV1::ConnectGmail,
+        )
+    }
 }
 
 impl Validate for SaveGmailSettingsV1Response {
@@ -332,6 +456,24 @@ pub trait GmailConnectorPort {
         request: &SaveGmailSettingsV1Request,
     ) -> GmailConnectorPortResult<SaveGmailSettingsV1Response>;
 
+    fn get_gmail_connector_v2(
+        &self,
+        _request: &GetGmailConnectorV2Request,
+    ) -> GmailConnectorPortResult<GetGmailConnectorV2Response> {
+        Err(GmailConnectorPortError::new(
+            GmailConnectorPortErrorKind::Unavailable,
+        ))
+    }
+
+    fn save_gmail_settings_v2(
+        &self,
+        _request: &SaveGmailSettingsV2Request,
+    ) -> GmailConnectorPortResult<SaveGmailSettingsV2Response> {
+        Err(GmailConnectorPortError::new(
+            GmailConnectorPortErrorKind::Unavailable,
+        ))
+    }
+
     fn connect_gmail(
         &self,
         request: &ConnectGmailV1Request,
@@ -364,6 +506,36 @@ fn validate_oauth_client_id(value: &str) -> Result<(), ValidationError> {
         return Err(ValidationError::new(SafeFieldV1::GmailClientId));
     }
     Ok(())
+}
+
+fn validate_gmail_query(value: &str) -> Result<(), ValidationError> {
+    if value.is_empty()
+        || value.len() > MAX_GMAIL_QUERY_BYTES
+        || value.chars().any(char::is_control)
+    {
+        return Err(ValidationError::new(SafeFieldV1::GmailQuery));
+    }
+    Ok(())
+}
+
+fn require_schema_v2(value: u8) -> Result<(), ValidationError> {
+    if value == 2 {
+        Ok(())
+    } else {
+        Err(ValidationError::new(SafeFieldV1::SchemaVersion))
+    }
+}
+
+fn deserialize_schema_version_v2<'de, D>(deserializer: D) -> Result<u8, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let value = u8::deserialize(deserializer)?;
+    if value == 2 {
+        Ok(value)
+    } else {
+        Err(serde::de::Error::custom("unsupported schema version"))
+    }
 }
 
 fn validate_status(

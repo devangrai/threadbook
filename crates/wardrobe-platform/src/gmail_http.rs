@@ -493,7 +493,12 @@ impl PendingPkceAuthorization {
 pub struct GoogleGmailGateway {
     http: GoogleHttpClient,
     access_token: SecretString,
-    label_id: String,
+    discovery: GoogleGmailDiscovery,
+}
+
+enum GoogleGmailDiscovery {
+    Label(String),
+    Search(String),
 }
 
 impl GoogleGmailGateway {
@@ -501,7 +506,15 @@ impl GoogleGmailGateway {
         Self {
             http,
             access_token,
-            label_id,
+            discovery: GoogleGmailDiscovery::Label(label_id),
+        }
+    }
+
+    pub fn new_search(http: GoogleHttpClient, access_token: SecretString, query: String) -> Self {
+        Self {
+            http,
+            access_token,
+            discovery: GoogleGmailDiscovery::Search(query),
         }
     }
 
@@ -558,12 +571,51 @@ impl GmailGateway for GoogleGmailGateway {
         page_token: Option<&str>,
         page_size: usize,
     ) -> Result<MessagePage, GatewayError> {
-        if label_id != self.label_id {
+        if !matches!(&self.discovery, GoogleGmailDiscovery::Label(value) if value == label_id) {
             return Err(GatewayError::MalformedRequest);
         }
         let mut url = gmail_url(&self.http.endpoints, "users/me/messages").map_err(map_gateway)?;
         url.query_pairs_mut()
             .append_pair("labelIds", label_id)
+            .append_pair("maxResults", &page_size.to_string());
+        if let Some(token) = page_token {
+            url.query_pairs_mut().append_pair("pageToken", token);
+        }
+        let response: MessagesResponse = self
+            .http
+            .request_json(
+                Method::GET,
+                url,
+                None,
+                Some(&self.access_token),
+                PAGE_BODY_CAP,
+                true,
+            )
+            .await
+            .map_err(map_gateway)?;
+        Ok(MessagePage {
+            message_ids: response
+                .messages
+                .into_iter()
+                .map(|message| message.id)
+                .collect(),
+            next_page_token: response.next_page_token,
+        })
+    }
+
+    async fn list_search_messages(
+        &mut self,
+        query: &str,
+        page_token: Option<&str>,
+        page_size: usize,
+    ) -> Result<MessagePage, GatewayError> {
+        if !matches!(&self.discovery, GoogleGmailDiscovery::Search(value) if value == query) {
+            return Err(GatewayError::MalformedRequest);
+        }
+        let mut url = gmail_url(&self.http.endpoints, "users/me/messages").map_err(map_gateway)?;
+        url.query_pairs_mut()
+            .append_pair("q", query)
+            .append_pair("includeSpamTrash", "false")
             .append_pair("maxResults", &page_size.to_string());
         if let Some(token) = page_token {
             url.query_pairs_mut().append_pair("pageToken", token);
@@ -643,7 +695,7 @@ impl GmailGateway for GoogleGmailGateway {
         page_token: Option<&str>,
         page_size: usize,
     ) -> Result<HistoryPage, GatewayError> {
-        if label_id != self.label_id {
+        if !matches!(&self.discovery, GoogleGmailDiscovery::Label(value) if value == label_id) {
             return Err(GatewayError::MalformedRequest);
         }
         let mut url = gmail_url(&self.http.endpoints, "users/me/history").map_err(map_gateway)?;
@@ -1031,6 +1083,7 @@ mod tests {
             r#"{"messages":[{"id":"m1"}]}"#,
             r#"{"id":"m1","historyId":"11","labelIds":["Label_1"],"raw":"U3ViamVjdDogcmVjZWlwdA0KDQpib2R5"}"#,
             r#"{"history":[{"id":"12","labelsRemoved":[{"message":{"id":"m1"},"labelIds":["Label_1"]}]}],"historyId":"12"}"#,
+            r#"{"messages":[{"id":"s1"}],"nextPageToken":"search-next"}"#,
         ];
         let server = tokio::spawn(async move {
             let acceptor = TlsAcceptor::from(Arc::new(server_config));
@@ -1131,6 +1184,18 @@ mod tests {
                 .kind,
             HistoryEventKind::ScopedLabelRemoved
         );
+        let query = r#"newer_than:3m  {"order confirmed" "café & tea"}"#;
+        let mut search_gateway = GoogleGmailGateway::new_search(
+            gateway.http.clone(),
+            SecretString::new("access-sentinel".into()),
+            query.into(),
+        );
+        let search_page = search_gateway
+            .list_search_messages(query, Some("search-page"), 75)
+            .await
+            .unwrap();
+        assert_eq!(search_page.message_ids, ["s1"]);
+        assert_eq!(search_page.next_page_token.as_deref(), Some("search-next"));
         let requests = server.await.unwrap();
         assert!(requests[0].starts_with("POST /token HTTP/1.1\r\n"));
         assert!(requests[0].contains("refresh_token=refresh-sentinel"));
@@ -1140,6 +1205,80 @@ mod tests {
             .contains("authorization: bearer access-sentinel"));
         assert!(requests[6].contains("startHistoryId=10"));
         assert!(requests[6].contains("labelId=Label_1"));
+        let target = requests[7]
+            .lines()
+            .next()
+            .and_then(|line| line.split_whitespace().nth(1))
+            .unwrap();
+        assert_eq!(
+            target,
+            "/gmail/v1/users/me/messages?q=newer_than%3A3m++%7B%22order+confirmed%22+\
+             %22caf%C3%A9+%26+tea%22%7D&includeSpamTrash=false&maxResults=75&\
+             pageToken=search-page"
+        );
+        let search_url = Url::parse(&format!("https://fixture.invalid{target}")).unwrap();
+        let pairs = search_url
+            .query_pairs()
+            .map(|(name, value)| (name.into_owned(), value.into_owned()))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        assert_eq!(search_url.path(), "/gmail/v1/users/me/messages");
+        assert_eq!(pairs.get("q").map(String::as_str), Some(query));
+        assert_eq!(
+            pairs.get("includeSpamTrash").map(String::as_str),
+            Some("false")
+        );
+        assert_eq!(pairs.get("maxResults").map(String::as_str), Some("75"));
+        assert_eq!(
+            pairs.get("pageToken").map(String::as_str),
+            Some("search-page")
+        );
+        assert!(!pairs.contains_key("labelIds"));
+        assert!(requests[1..].iter().all(|request| {
+            request.starts_with("GET ")
+                && !request.contains("/modify")
+                && !request.contains("/trash")
+                && !request.contains("/send")
+                && !request.contains("/batchModify")
+        }));
+    }
+
+    #[tokio::test]
+    async fn discovery_modes_reject_cross_mode_listing_and_history_calls() {
+        let http = GoogleHttpClient {
+            client: reqwest::Client::new(),
+            endpoints: GoogleEndpoints::production(),
+        };
+        let mut label_gateway = GoogleGmailGateway::new(
+            http.clone(),
+            SecretString::new("access-sentinel".into()),
+            "Label_1".into(),
+        );
+        assert_eq!(
+            label_gateway
+                .list_search_messages("subject:order", None, 10)
+                .await,
+            Err(GatewayError::MalformedRequest)
+        );
+
+        let mut search_gateway = GoogleGmailGateway::new_search(
+            http,
+            SecretString::new("access-sentinel".into()),
+            "subject:order".into(),
+        );
+        assert_eq!(
+            search_gateway
+                .list_search_messages("subject:different", None, 10)
+                .await,
+            Err(GatewayError::MalformedRequest)
+        );
+        assert_eq!(
+            search_gateway.list_messages("Label_1", None, 10).await,
+            Err(GatewayError::MalformedRequest)
+        );
+        assert_eq!(
+            search_gateway.list_history("10", "Label_1", None, 10).await,
+            Err(GatewayError::MalformedRequest)
+        );
     }
 
     fn fixture_der(name: &str) -> Vec<u8> {

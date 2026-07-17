@@ -9,6 +9,7 @@ pub(crate) enum OutboundCapability {
     ReceiptImageFetch,
     PhotoKitMaterialize,
     OpenAiRecommendation,
+    OpenAiReceiptIntelligence,
     OpenAiTryOn,
 }
 
@@ -252,6 +253,7 @@ mod tests {
             OutboundCapability::ReceiptImageFetch,
             OutboundCapability::PhotoKitMaterialize,
             OutboundCapability::OpenAiRecommendation,
+            OutboundCapability::OpenAiReceiptIntelligence,
             OutboundCapability::OpenAiTryOn,
         ] {
             assert_eq!(

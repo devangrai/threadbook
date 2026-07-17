@@ -19,7 +19,7 @@ fn v12_photokit_schema_is_strict_restrictive_and_extends_deletion_snapshots() {
         connection
             .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
             .unwrap(),
-        14
+        16
     );
     for table in PHOTOKIT_SCHEMA_TABLES {
         assert_eq!(

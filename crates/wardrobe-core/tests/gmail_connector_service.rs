@@ -4,12 +4,21 @@ use wardrobe_core::*;
 
 const CLIENT_ID: &str = "1234567890-desktop.apps.googleusercontent.com";
 
+#[derive(Clone, Copy)]
+enum V2SettingsMismatch {
+    ClientId,
+    DiscoveryScope,
+    Limits,
+}
+
 #[derive(Default)]
 struct Connector {
     calls: RefCell<Vec<&'static str>>,
     error: Cell<Option<GmailConnectorPortErrorKind>>,
     wrong_request_id: Cell<bool>,
+    wrong_schema_version: Cell<bool>,
     wrong_status: Cell<bool>,
+    v2_settings_mismatch: Cell<Option<V2SettingsMismatch>>,
 }
 
 impl Connector {
@@ -23,6 +32,14 @@ impl Connector {
 
     fn fail<T>(&self) -> GmailConnectorPortResult<T> {
         Err(GmailConnectorPortError::new(self.error.get().unwrap()))
+    }
+
+    fn schema_v2(&self) -> u8 {
+        if self.wrong_schema_version.get() {
+            1
+        } else {
+            2
+        }
     }
 }
 
@@ -62,6 +79,72 @@ impl GmailConnectorPort for Connector {
                 limits: request.limits.clone(),
             },
             status: GmailConnectorStatusV1::Disconnected,
+            user_action: UserActionKeyV1::ConnectGmail,
+            replay_status: ReplayStatusV1::Created,
+        })
+    }
+
+    fn get_gmail_connector_v2(
+        &self,
+        request: &GetGmailConnectorV2Request,
+    ) -> GmailConnectorPortResult<GetGmailConnectorV2Response> {
+        self.calls.borrow_mut().push("get_v2");
+        if self.error.get().is_some() {
+            return self.fail();
+        }
+        Ok(GetGmailConnectorV2Response {
+            schema_version: self.schema_v2(),
+            request_id: self.request_id(request.request_id),
+            settings: Some(settings_v2(GmailDiscoveryScopeV2::Search {
+                query: "from:orders@example.com".to_owned(),
+            })),
+            status: if self.wrong_status.get() {
+                GmailConnectorStatusV1::NotConfigured
+            } else {
+                GmailConnectorStatusV1::Disconnected
+            },
+            user_action: UserActionKeyV1::ConnectGmail,
+        })
+    }
+
+    fn save_gmail_settings_v2(
+        &self,
+        request: &SaveGmailSettingsV2Request,
+    ) -> GmailConnectorPortResult<SaveGmailSettingsV2Response> {
+        self.calls.borrow_mut().push("save_v2");
+        if self.error.get().is_some() {
+            return self.fail();
+        }
+
+        let mut settings = GmailConnectorSettingsV2 {
+            provider_profile: GmailProviderProfileV1::Google,
+            oauth_client_id: request.client_id.clone(),
+            discovery_scope: request.discovery_scope.clone(),
+            limits: request.limits.clone(),
+        };
+        match self.v2_settings_mismatch.get() {
+            Some(V2SettingsMismatch::ClientId) => {
+                settings.oauth_client_id =
+                    "different-desktop.apps.googleusercontent.com".to_owned();
+            }
+            Some(V2SettingsMismatch::DiscoveryScope) => {
+                settings.discovery_scope = GmailDiscoveryScopeV2::Search {
+                    query: "from:different@example.com".to_owned(),
+                };
+            }
+            Some(V2SettingsMismatch::Limits) => settings.limits.page_size -= 1,
+            None => {}
+        }
+
+        Ok(SaveGmailSettingsV2Response {
+            schema_version: self.schema_v2(),
+            request_id: self.request_id(request.request_id),
+            settings,
+            status: if self.wrong_status.get() {
+                GmailConnectorStatusV1::Connected
+            } else {
+                GmailConnectorStatusV1::Disconnected
+            },
             user_action: UserActionKeyV1::ConnectGmail,
             replay_status: ReplayStatusV1::Created,
         })
@@ -144,6 +227,15 @@ fn settings() -> GmailConnectorSettingsV1 {
     }
 }
 
+fn settings_v2(discovery_scope: GmailDiscoveryScopeV2) -> GmailConnectorSettingsV2 {
+    GmailConnectorSettingsV2 {
+        provider_profile: GmailProviderProfileV1::Google,
+        oauth_client_id: CLIENT_ID.to_owned(),
+        discovery_scope,
+        limits: limits(),
+    }
+}
+
 fn summary() -> GmailSyncSummaryV1 {
     GmailSyncSummaryV1 {
         pages_scanned: 1,
@@ -157,6 +249,16 @@ fn summary() -> GmailSyncSummaryV1 {
 
 fn envelope<T>(build: impl FnOnce(RequestId) -> T) -> T {
     build(RequestId::new_v4())
+}
+
+fn save_v2_request(discovery_scope: GmailDiscoveryScopeV2) -> SaveGmailSettingsV2Request {
+    SaveGmailSettingsV2Request {
+        schema_version: 2,
+        request_id: RequestId::new_v4(),
+        client_id: CLIENT_ID.to_owned(),
+        discovery_scope,
+        limits: limits(),
+    }
 }
 
 #[test]
@@ -208,6 +310,43 @@ fn service_validates_then_dispatches_every_gmail_command() {
 }
 
 #[test]
+fn service_dispatches_strict_v2_search_and_label_contracts() {
+    let service = ApplicationService::new((), (), ()).with_gmail_connector(Connector::default());
+
+    let get = service
+        .get_gmail_connector_v2(envelope(|request_id| GetGmailConnectorV2Request {
+            schema_version: 2,
+            request_id,
+        }))
+        .unwrap();
+    assert_eq!(
+        get.settings.unwrap().discovery_scope,
+        GmailDiscoveryScopeV2::Search {
+            query: "from:orders@example.com".to_owned()
+        }
+    );
+
+    for discovery_scope in [
+        GmailDiscoveryScopeV2::Search {
+            query: "  from:orders@example.com  ".to_owned(),
+        },
+        GmailDiscoveryScopeV2::Label {
+            label_name: "Wardrobe Receipts".to_owned(),
+        },
+    ] {
+        let response = service
+            .save_gmail_settings_v2(save_v2_request(discovery_scope.clone()))
+            .unwrap();
+        assert_eq!(response.settings.discovery_scope, discovery_scope);
+    }
+
+    assert_eq!(
+        service.gmail_connector().calls.borrow().as_slice(),
+        ["get_v2", "save_v2", "save_v2"]
+    );
+}
+
+#[test]
 fn malformed_request_ids_and_statuses_from_port_fail_closed() {
     let service = ApplicationService::new((), (), ()).with_gmail_connector(Connector::default());
     service.gmail_connector().wrong_request_id.set(true);
@@ -232,6 +371,52 @@ fn malformed_request_ids_and_statuses_from_port_fail_closed() {
 }
 
 #[test]
+fn v2_service_rejects_response_header_status_and_settings_mismatches() {
+    for configure in [
+        |connector: &Connector| connector.wrong_request_id.set(true),
+        |connector: &Connector| connector.wrong_schema_version.set(true),
+        |connector: &Connector| connector.wrong_status.set(true),
+    ] {
+        let connector = Connector::default();
+        configure(&connector);
+        let service = ApplicationService::new((), (), ()).with_gmail_connector(connector);
+        let error = service
+            .save_gmail_settings_v2(save_v2_request(GmailDiscoveryScopeV2::Label {
+                label_name: "Wardrobe Receipts".to_owned(),
+            }))
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCodeV1::DataIntegrity);
+    }
+
+    for mismatch in [
+        V2SettingsMismatch::ClientId,
+        V2SettingsMismatch::DiscoveryScope,
+        V2SettingsMismatch::Limits,
+    ] {
+        let connector = Connector::default();
+        connector.v2_settings_mismatch.set(Some(mismatch));
+        let service = ApplicationService::new((), (), ()).with_gmail_connector(connector);
+        let error = service
+            .save_gmail_settings_v2(save_v2_request(GmailDiscoveryScopeV2::Label {
+                label_name: "Wardrobe Receipts".to_owned(),
+            }))
+            .unwrap_err();
+        assert_eq!(error.code, ErrorCodeV1::DataIntegrity);
+    }
+
+    let connector = Connector::default();
+    connector.wrong_status.set(true);
+    let service = ApplicationService::new((), (), ()).with_gmail_connector(connector);
+    let error = service
+        .get_gmail_connector_v2(envelope(|request_id| GetGmailConnectorV2Request {
+            schema_version: 2,
+            request_id,
+        }))
+        .unwrap_err();
+    assert_eq!(error.code, ErrorCodeV1::DataIntegrity);
+}
+
+#[test]
 fn invalid_requests_never_reach_the_connector() {
     let service = ApplicationService::new((), (), ()).with_gmail_connector(Connector::default());
     let error = service
@@ -245,6 +430,19 @@ fn invalid_requests_never_reach_the_connector() {
         .unwrap_err();
 
     assert_eq!(error.field, Some(SafeFieldV1::GmailClientId));
+    assert!(service.gmail_connector().calls.borrow().is_empty());
+}
+
+#[test]
+fn invalid_v2_requests_never_reach_the_connector() {
+    let service = ApplicationService::new((), (), ()).with_gmail_connector(Connector::default());
+    let error = service
+        .save_gmail_settings_v2(save_v2_request(GmailDiscoveryScopeV2::Search {
+            query: "subject:receipt\nfrom:orders@example.com".to_owned(),
+        }))
+        .unwrap_err();
+
+    assert_eq!(error.field, Some(SafeFieldV1::GmailQuery));
     assert!(service.gmail_connector().calls.borrow().is_empty());
 }
 

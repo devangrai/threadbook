@@ -80,6 +80,9 @@ EXPECTED_COMMANDS = (
     "list_receipts_v1",
     "analyze_receipt_v1",
     "review_receipt_v1",
+    "preview_receipt_intelligence_v1",
+    "request_receipt_intelligence_v1",
+    "list_receipt_intelligence_v1",
     "list_receipt_image_candidates_v1",
     "approve_and_fetch_receipt_image_v1",
     "list_imported_photo_roots_v1",
@@ -103,6 +106,8 @@ EXPECTED_COMMANDS = (
     "list_reconciliation_cases_v2",
     "get_gmail_connector_v1",
     "save_gmail_settings_v1",
+    "get_gmail_connector_v2",
+    "save_gmail_settings_v2",
     "connect_gmail_v1",
     "sync_gmail_v1",
     "disconnect_gmail_v1",
@@ -120,6 +125,7 @@ EXPECTED_OUTBOUND_CAPABILITIES = (
     "ReceiptImageFetch",
     "PhotoKitMaterialize",
     "OpenAiRecommendation",
+    "OpenAiReceiptIntelligence",
     "OpenAiTryOn",
 )
 EXPECTED_VIEWS = (

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-request-receipt-intelligence-v1"
+description = "Enables the request_receipt_intelligence_v1 command without any pre-configured scope."
+commands.allow = ["request_receipt_intelligence_v1"]
+
+[[permission]]
+identifier = "deny-request-receipt-intelligence-v1"
+description = "Denies the request_receipt_intelligence_v1 command without any pre-configured scope."
+commands.deny = ["request_receipt_intelligence_v1"]

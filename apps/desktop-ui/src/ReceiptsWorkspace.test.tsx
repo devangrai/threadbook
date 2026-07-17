@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ReceiptBridge } from "./receipt-bridge";
+import type { ReceiptIntelligenceBridge } from "./receipt-intelligence-bridge";
 import type {
   CorrectedReceiptOrderV1,
   ReceiptReviewActionV1,
@@ -104,11 +105,17 @@ describe("receipts workspace", { timeout: 15_000 }, () => {
       }),
     };
     const user = userEvent.setup();
-    render(<ReceiptsWorkspace localOnly={false} bridge={bridge} />);
+    render(
+      <ReceiptsWorkspace
+        localOnly={false}
+        bridge={bridge}
+        intelligenceBridge={emptyIntelligenceBridge()}
+      />,
+    );
 
     await user.click(
       await screen.findByRole("button", {
-        name: "Analyze receipt from unknown merchant",
+        name: "Offline analyze receipt from unknown merchant",
       }),
     );
     expect(
@@ -201,7 +208,13 @@ describe("receipts workspace", { timeout: 15_000 }, () => {
       approveAndFetchReceiptImage,
     } as unknown as ReceiptBridge;
     const user = userEvent.setup();
-    render(<ReceiptsWorkspace localOnly bridge={bridge} />);
+    render(
+      <ReceiptsWorkspace
+        localOnly
+        bridge={bridge}
+        intelligenceBridge={emptyIntelligenceBridge()}
+      />,
+    );
 
     await user.click(
       await screen.findByRole("button", { name: "Find receipt images" }),
@@ -217,3 +230,19 @@ describe("receipts workspace", { timeout: 15_000 }, () => {
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
+
+function emptyIntelligenceBridge(): ReceiptIntelligenceBridge {
+  return {
+    preview: vi.fn(),
+    request: vi.fn(),
+    latest: vi.fn(async () => ({
+      availability: {
+        available: false,
+        reason: "release_evidence_unavailable" as const,
+        offline_receipt_analysis_available: true,
+        existing_wardrobe_access_available: true,
+      },
+      attempt: null,
+    })),
+  };
+}

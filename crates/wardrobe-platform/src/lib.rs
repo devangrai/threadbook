@@ -30,8 +30,12 @@ mod photokit_keychain;
 mod photokit_native;
 mod photokit_repository;
 mod receipt_image_downloader;
+mod receipt_intelligence_coordinator;
+mod receipt_intelligence_provider;
+mod receipt_intelligence_repository;
 #[allow(clippy::needless_borrow, clippy::too_many_arguments)]
 mod receipt_parser;
+mod receipt_promotion_repository;
 mod receipt_provider;
 mod receipt_repository;
 mod reconciliation_repository;
@@ -42,6 +46,9 @@ mod try_on_renderer;
 mod try_on_repository;
 mod update_package;
 mod worker;
+
+#[cfg(test)]
+mod receipt_promotion_repository_tests;
 
 pub use backup_repository::{
     BackupReason, BackupRecord, BackupRepository, VerifiedBackup, BACKUP_FORMAT_VERSION,
@@ -81,6 +88,17 @@ pub use photokit_keychain::*;
 pub use photokit_native::*;
 pub use photokit_repository::*;
 pub use receipt_image_downloader::*;
+pub use receipt_intelligence_coordinator::*;
+pub use receipt_intelligence_provider::*;
+pub use receipt_intelligence_repository::{
+    ReceiptIntelligenceAttemptState as StoredReceiptIntelligenceAttemptState,
+    ReceiptIntelligenceAuditMetadata, ReceiptIntelligenceAuditRecord, ReceiptIntelligenceBounds,
+    ReceiptIntelligenceClassification as StoredReceiptIntelligenceClassification,
+    ReceiptIntelligenceConsentReservation, ReceiptIntelligenceFailureCode,
+    ReceiptIntelligenceListEntry, ReceiptIntelligencePreview, ReceiptIntelligencePreviewContext,
+    ReceiptIntelligencePreviewFragment, ReceiptSourceAuthorityHead,
+    ReservedReceiptIntelligenceAttempt,
+};
 pub use receipt_parser::{
     parse_receipt_bundle_v1, parse_receipt_v1, verify_citation_v1, ParsedReceiptBundleV1,
     ReceiptImageCandidateEligibilityV1, ReceiptImageCandidateInputV1, ReceiptParseError,

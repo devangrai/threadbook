@@ -287,25 +287,43 @@ def load_policy(repo: Path) -> Mapping[str, Any]:
     if segmentation["availability"] != "unavailable":
         raise SupplyChainError("local segmentation provider must be unavailable")
     expected_services = {
-        "outfit_recommendation": ("openai", "gpt-5.6-sol"),
-        "try_on_visualization": ("openai", "gpt-image-2"),
+        "openai_receipt_intelligence": {
+            "downloads_code": False,
+            "evaluator_sha256": "3fd9db5e09176d6dd83616b40ece3d39a1f706612998a037e3c1293c5459b70e",
+            "model": "gpt-5.6-sol",
+            "phase_spec_sha256": "e559ff6bcddf2d6546a50fbce22315b210c617c1454a3340ebcbd4619cb73c66",
+            "projection_revision": "receipt-intelligence-projection-v1",
+            "prompt_revision": "receipt-intelligence-prompt-v1",
+            "proposal_sha256": "ab85491e61c17dbd465655e6e21dc087f079de4b7e58784a0637215847904d04",
+            "provider": "openai",
+            "requirements_sha256": "42c1c1a182b82571b49b926f679e56f1eb3b8fe6f7bdbb987013ada71ed98bb3",
+            "retention_revision": "p11-openai-responses-retention-v1",
+            "review_sha256": "f35b29c4ac6b72cd76612b0aff2c1341de4db6e6bdf5846d050fa9cadb3161a6",
+            "schema_revision": "receipt-intelligence-v1",
+        },
+        "outfit_recommendation": {
+            "downloads_code": False,
+            "model": "gpt-5.6-sol",
+            "provider": "openai",
+        },
+        "try_on_visualization": {
+            "downloads_code": False,
+            "model": "gpt-image-2",
+            "provider": "openai",
+        },
     }
     services = _expect_keys(
         models["remote_services"],
         set(expected_services),
         "policy.models.remote_services",
     )
-    for purpose, (provider, model) in expected_services.items():
+    for purpose, expected in expected_services.items():
         service = _expect_keys(
             services[purpose],
-            {"downloads_code", "model", "provider"},
+            set(expected),
             f"policy.models.remote_services.{purpose}",
         )
-        if (
-            service["provider"] != provider
-            or service["model"] != model
-            or service["downloads_code"] is not False
-        ):
+        if service != expected:
             raise SupplyChainError(f"remote service {purpose} is not the reviewed binding")
     if models["remote_model_code_allowed"] is not False:
         raise SupplyChainError("remote model code must remain prohibited")

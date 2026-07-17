@@ -23,7 +23,9 @@ test("receipt analysis, review, correction, reload, and mobile workflow", async 
   await expect(page.getByText("Second Look")).toBeVisible();
 
   await page
-    .getByRole("button", { name: "Analyze receipt from unknown merchant" })
+    .getByRole("button", {
+      name: "Offline analyze receipt from unknown merchant",
+    })
     .click();
   await expect(
     page.getByRole("heading", { name: "Northstar Outfitters", level: 3 }),

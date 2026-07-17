@@ -393,6 +393,34 @@ class SupplyChainTests(unittest.TestCase):
         with self.assertRaisesRegex(supply.SupplyChainError, "unknown"):
             supply.load_policy(self.root)
 
+    def test_openai_receipt_intelligence_binding_is_exact_and_generated(self) -> None:
+        manifest, _ = supply.build_manifest(
+            self.root, runner=self.fixture.runner, scan_sources=False
+        )
+        service = manifest["models"]["remote_services"]["openai_receipt_intelligence"]
+        self.assertEqual("openai", service["provider"])
+        self.assertEqual("gpt-5.6-sol", service["model"])
+        self.assertEqual("receipt-intelligence-prompt-v1", service["prompt_revision"])
+        self.assertEqual("receipt-intelligence-v1", service["schema_revision"])
+        self.assertEqual(
+            "receipt-intelligence-projection-v1", service["projection_revision"]
+        )
+        self.assertEqual(
+            "p11-openai-responses-retention-v1", service["retention_revision"]
+        )
+        self.assertEqual(
+            "3fd9db5e09176d6dd83616b40ece3d39a1f706612998a037e3c1293c5459b70e",
+            service["evaluator_sha256"],
+        )
+        self.assertFalse(service["downloads_code"])
+
+        self.fixture.policy["models"]["remote_services"][
+            "openai_receipt_intelligence"
+        ]["evaluator_sha256"] = "f" * 64
+        self.fixture.write_policy()
+        with self.assertRaisesRegex(supply.SupplyChainError, "reviewed binding"):
+            supply.load_policy(self.root)
+
     def test_swift_manifest_drift_fails_before_executable_inspection(self) -> None:
         (self.root / "native/photokit/Package.swift").write_text(
             "// changed executable manifest\n", encoding="utf-8"

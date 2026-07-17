@@ -1,0 +1,63 @@
+{
+  "accepted_at": "2026-07-16T20:46:59+00:00",
+  "build_command": [
+    "make",
+    "build"
+  ],
+  "build_source_fingerprint": "7fe46f8ee1abe6532b0fb1bf50a8ac57e12fb20ec433cd640ecfba8b4bcfa830",
+  "evaluate_command": [
+    "make",
+    "test"
+  ],
+  "evidence": [
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 3,
+        "external_credentials_used": false,
+        "live_gmail_access": false,
+        "packaged_tauri_coverage": false,
+        "playwright_scope": "not_applicable",
+        "verification_scope": "focused_local_contracts_and_tests"
+      },
+      "recorded_at": "2026-07-16T20:46:44+00:00",
+      "requirement_id": "P10-GML-010",
+      "sha256": "1d1deda71a64929aa556a2ac17dbeb06d233628265df4cc995d377ff82da995c",
+      "status": "pass",
+      "test": "p10_gmail::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 2,
+        "external_credentials_used": false,
+        "live_gmail_access": false,
+        "packaged_tauri_coverage": false,
+        "playwright_scope": "vite_transport_fixture_only",
+        "verification_scope": "focused_local_contracts_and_tests"
+      },
+      "recorded_at": "2026-07-16T20:46:44+00:00",
+      "requirement_id": "P10-UI-001",
+      "sha256": "8304d867432ebad486e368066a78537ced05d0b5a13af10a838573e5bac03961",
+      "status": "pass",
+      "test": "p10_gmail::focused_local_verification"
+    }
+  ],
+  "evidence_file_hashes": {
+    "P10-GML-010.json": "1d1deda71a64929aa556a2ac17dbeb06d233628265df4cc995d377ff82da995c",
+    "P10-UI-001.json": "8304d867432ebad486e368066a78537ced05d0b5a13af10a838573e5bac03961",
+    "p10-gmail-diagnostics.json": "f982bb861f6a79ec9c27f8cea091b980890c716a8346fc13ac0e51cda330c4d1"
+  },
+  "phase": "P10",
+  "proposal_hash": "27b5738fa8463f88a3eb21f11f935d8b9dbfbf41aacaa3cf89cc79fc414a340b",
+  "run_id": "20260716T194203Z-14e7bed0",
+  "schema_version": 1,
+  "selected_requirement_ids": [
+    "P10-GML-010",
+    "P10-UI-001"
+  ],
+  "spec_hashes": {
+    "specs/phases/P10-gmail-wardrobe.md": "a37caed761091ab4536867049e2615724e1da396c1fa937ab4e214014a41f6dd",
+    "specs/system.md": "1cb32b71698c8accfafa34dab8c73eb47e047a49ccc6f2ac0b25734e1d8d1546"
+  }
+}

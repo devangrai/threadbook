@@ -619,7 +619,7 @@ def validate_source_contract(root: Path) -> SourceValidation:
         or "version: 14" not in database
         or "post_commit_failpoints_restore_exact_managed_pre_upgrade_database"
         not in database
-        or "fresh_v14_schema_is_strict_restrictive_and_append_only"
+        or "fresh_schema_is_strict_restrictive_and_append_only"
         not in database
         or "migration_0014_preserves_populated_v13_reconciliation_history_without_owner_fabrication"
         not in database

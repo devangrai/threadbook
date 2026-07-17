@@ -53,6 +53,14 @@ const MIGRATION_0013_SQL: &str = include_str!("../migrations/0013_local_only_dis
 const MIGRATION_0013_SHA256: &str = include_str!("../migrations/0013_local_only_disconnect.sha256");
 const MIGRATION_0014_SQL: &str = include_str!("../migrations/0014_photo_owner_authority.sql");
 const MIGRATION_0014_SHA256: &str = include_str!("../migrations/0014_photo_owner_authority.sha256");
+const MIGRATION_0015_SQL: &str = include_str!("../migrations/0015_gmail_query_discovery.sql");
+const MIGRATION_0015_SHA256: &str = include_str!("../migrations/0015_gmail_query_discovery.sha256");
+const MIGRATION_0016_SQL: &str = include_str!("../migrations/0016_receipt_intelligence.sql");
+const MIGRATION_0016_SHA256: &str = include_str!("../migrations/0016_receipt_intelligence.sha256");
+const MIGRATION_0017_SQL: &str =
+    include_str!("../migrations/0017_receipt_purchase_unit_promotion.sql");
+const MIGRATION_0017_SHA256: &str =
+    include_str!("../migrations/0017_receipt_purchase_unit_promotion.sha256");
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Clone, Copy)]
@@ -132,6 +140,21 @@ const MIGRATIONS: &[Migration] = &[
         version: 14,
         sql: MIGRATION_0014_SQL,
         sha256: MIGRATION_0014_SHA256,
+    },
+    Migration {
+        version: 15,
+        sql: MIGRATION_0015_SQL,
+        sha256: MIGRATION_0015_SHA256,
+    },
+    Migration {
+        version: 16,
+        sql: MIGRATION_0016_SQL,
+        sha256: MIGRATION_0016_SHA256,
+    },
+    Migration {
+        version: 17,
+        sql: MIGRATION_0017_SQL,
+        sha256: MIGRATION_0017_SHA256,
     },
 ];
 
@@ -354,6 +377,7 @@ impl Database {
         let database = Self {
             paths: paths.clone(),
         };
+        database.recover_gmail_blob_publications()?;
         database.recover_deletions(now_ms)?;
         database.recover_expired_image_attempts(now_ms)?;
         if restored {
@@ -863,7 +887,11 @@ fn apply_migration(
     migration: &Migration,
     now_ms: i64,
 ) -> PlatformResult<()> {
-    let rebuilds_constrained_parents = matches!(migration.version, 12 | 14);
+    let rebuilds_constrained_parents = matches!(migration.version, 12 | 14 | 15 | 17);
+    let foreign_keys_before: i64 =
+        connection.pragma_query_value(None, "foreign_keys", |row| row.get(0))?;
+    let legacy_alter_table_before: i64 =
+        connection.pragma_query_value(None, "legacy_alter_table", |row| row.get(0))?;
     if rebuilds_constrained_parents {
         connection.pragma_update(None, "foreign_keys", false)?;
     }
@@ -879,10 +907,12 @@ fn apply_migration(
         transaction.commit()?;
         Ok(())
     })();
-    if rebuilds_constrained_parents {
-        connection.pragma_update(None, "foreign_keys", true)?;
-    }
-    result
+    let restore_pragmas = (|| {
+        connection.pragma_update(None, "legacy_alter_table", legacy_alter_table_before != 0)?;
+        connection.pragma_update(None, "foreign_keys", foreign_keys_before != 0)?;
+        Ok(())
+    })();
+    restore_pragmas.and(result)
 }
 
 fn validate_migration_source() -> PlatformResult<()> {
@@ -2295,7 +2325,21 @@ mod tests {
         apply_migration(&mut connection, &MIGRATIONS[11], now_ms + 11).unwrap();
     }
 
+    fn create_v13_database(paths: &PrivateAppPaths, now_ms: i64) {
+        create_v12_database(paths, now_ms);
+        let mut connection = open_connection(&paths.database).unwrap();
+        apply_migration(&mut connection, &MIGRATIONS[12], now_ms + 12).unwrap();
+    }
+
     fn create_pre_target_database(paths: &PrivateAppPaths, now_ms: i64) -> i64 {
+        create_database_at_version(paths, now_ms, MIGRATIONS[MIGRATIONS.len() - 2].version)
+    }
+
+    fn create_database_at_version(
+        paths: &PrivateAppPaths,
+        now_ms: i64,
+        target_version: i64,
+    ) -> i64 {
         OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -2303,7 +2347,11 @@ mod tests {
             .open(&paths.database)
             .unwrap();
         let mut connection = open_connection(&paths.database).unwrap();
-        for (offset, migration) in MIGRATIONS[..MIGRATIONS.len() - 1].iter().enumerate() {
+        for (offset, migration) in MIGRATIONS
+            .iter()
+            .take_while(|migration| migration.version <= target_version)
+            .enumerate()
+        {
             apply_migration(
                 &mut connection,
                 migration,
@@ -2311,7 +2359,299 @@ mod tests {
             )
             .unwrap();
         }
-        MIGRATIONS[MIGRATIONS.len() - 2].version
+        target_version
+    }
+
+    fn latest_schema_version() -> i64 {
+        MIGRATIONS.last().unwrap().version
+    }
+
+    fn populate_v16_migration_domains(connection: &Connection, paths: &PrivateAppPaths) {
+        let retained_blob = crate::BlobStore::new(paths)
+            .put(b"p12-v16", None, 1024)
+            .unwrap();
+        assert_eq!(
+            retained_blob.sha256,
+            "072e648d17768a3a229b8c0d086f805bd56c45abf780f9e4650012eadd712b36"
+        );
+        connection
+            .execute_batch(
+                "INSERT INTO blobs(sha256, byte_length, created_at_ms)
+                 VALUES (
+                    '072e648d17768a3a229b8c0d086f805bd56c45abf780f9e4650012eadd712b36',
+                    7, 20
+                 );
+                 INSERT INTO local_sources(
+                    source_id, source_kind, identity_key, canonical_locator,
+                    raw_sha256, blob_sha256, byte_length, media_type, status,
+                    created_at_ms, updated_at_ms
+                 ) VALUES (
+                    '17000000-0000-4000-8000-000000000001', 'eml',
+                    'p12-v16-source', 'p12-v16-source',
+                    '072e648d17768a3a229b8c0d086f805bd56c45abf780f9e4650012eadd712b36',
+                    '072e648d17768a3a229b8c0d086f805bd56c45abf780f9e4650012eadd712b36',
+                    7, 'message/rfc822', 'imported', 20, 20
+                 );
+                 INSERT INTO evidence(
+                    evidence_id, source_id, part_id, evidence_kind, state,
+                    created_at_ms, updated_at_ms
+                 ) VALUES (
+                    '17000000-0000-4000-8000-000000000002',
+                    '17000000-0000-4000-8000-000000000001',
+                    NULL, 'image', 'assigned', 21, 21
+                 );
+                 INSERT INTO catalog_items(
+                    item_id, display_name, attributes_json, active,
+                    created_revision, updated_revision
+                 ) VALUES (
+                    '17000000-0000-4000-8000-000000000003',
+                    'V16 retained item', '{}', 1, 1, 1
+                 );
+                 INSERT INTO item_evidence(
+                    item_id, evidence_id, assigned_revision
+                 ) VALUES (
+                    '17000000-0000-4000-8000-000000000003',
+                    '17000000-0000-4000-8000-000000000002', 1
+                 );
+                 INSERT INTO command_receipts(
+                    request_id, command_name, envelope_hash,
+                    response_json, created_at_ms
+                 ) VALUES
+                 (
+                    '17000000-0000-4000-8000-000000000004',
+                    'create_outfit_v1',
+                    'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+                    '{}', 22
+                 ),
+                 (
+                    '17000000-0000-4000-8000-000000000005',
+                    'review_receipt_v1',
+                    'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc',
+                    '{}', 22
+                 );
+                 INSERT INTO outfits(
+                    outfit_id, request_id, name, created_outfit_revision,
+                    created_at_ms
+                 ) VALUES (
+                    '17000000-0000-4000-8000-000000000006',
+                    '17000000-0000-4000-8000-000000000004',
+                    'V16 retained outfit', 1, 22
+                 );
+                 INSERT INTO outfit_members(
+                    outfit_id, ordinal, item_id, item_updated_revision,
+                    attributes_json, asset_state, evidence_id, source_id,
+                    blob_sha256, media_type, byte_length, width, height
+                 ) VALUES (
+                    '17000000-0000-4000-8000-000000000006', 0,
+                    '17000000-0000-4000-8000-000000000003', 1, '{}',
+                    'available',
+                    '17000000-0000-4000-8000-000000000002',
+                    '17000000-0000-4000-8000-000000000001',
+                    '072e648d17768a3a229b8c0d086f805bd56c45abf780f9e4650012eadd712b36',
+                    'image/jpeg', 7, 1, 1
+                 );
+                 INSERT INTO catalog_decisions(
+                    decision_id, request_id, decision_kind, catalog_revision,
+                    forward_json, inverse_json, created_at_ms
+                 ) VALUES (
+                    '17000000-0000-4000-8000-000000000007',
+                    '17000000-0000-4000-8000-000000000008',
+                    'assign', 1, '{}', '{}', 23
+                 );
+                 INSERT INTO decision_entities(
+                    decision_id, entity_kind, entity_id
+                 ) VALUES (
+                    '17000000-0000-4000-8000-000000000007', 'item',
+                    '17000000-0000-4000-8000-000000000003'
+                 );
+                 INSERT INTO receipt_command_entities(
+                    request_id, entity_kind, entity_id
+                 ) VALUES (
+                    '17000000-0000-4000-8000-000000000005', 'source',
+                    '17000000-0000-4000-8000-000000000001'
+                 );
+                 INSERT INTO deletion_previews(
+                    snapshot_token, target_kind, target_id, catalog_revision,
+                    evidence_generation, photo_revision,
+                    reconciliation_revision, outfit_revision,
+                    try_on_revision, photokit_revision, created_at_ms
+                 ) VALUES (
+                    'p12-v16-preview', 'source',
+                    '17000000-0000-4000-8000-000000000001',
+                    1, 1, 0, 0, 1, 0, 0, 24
+                 );
+                 INSERT INTO deletion_preview_items(
+                    snapshot_token, dependency_class, entity_id, sort_key
+                 ) VALUES (
+                    'p12-v16-preview', 'evidence_records',
+                    '17000000-0000-4000-8000-000000000002',
+                    'v16-evidence'
+                 );
+                 INSERT INTO deletion_plans(
+                    snapshot_token, epoch, target_kind, target_id, plan_sha256,
+                    catalog_revision, evidence_generation, receipt_revision,
+                    photo_revision, reconciliation_revision, outfit_revision,
+                    try_on_revision, photokit_revision, prepared_at_ms,
+                    expires_at_ms, unique_blob_count, unique_blob_bytes,
+                    retained_shared_blob_count
+                 ) VALUES (
+                    'p12-v16-plan',
+                    (SELECT epoch FROM store_authority_epoch WHERE singleton = 1),
+                    'source', '17000000-0000-4000-8000-000000000001',
+                    'dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd',
+                    1, 1, 0, 0, 0, 1, 0, 0, 25, 10000, 1, 3, 0
+                 );
+                 INSERT INTO deletion_plan_entries(
+                    snapshot_token, epoch, entity_kind, key_json, delete_rank
+                 ) VALUES (
+                    'p12-v16-plan',
+                    (SELECT epoch FROM store_authority_epoch WHERE singleton = 1),
+                    'evidence',
+                    json_array('17000000-0000-4000-8000-000000000002'),
+                    10
+                 );
+                 INSERT INTO deletion_plan_backup_retention(
+                    snapshot_token, ordinal, backup_id, reason, expires_at_ms
+                 ) VALUES (
+                    'p12-v16-plan', 0,
+                    '17000000-0000-4000-8000-000000000009',
+                    'manual', 10000
+                 );
+                 INSERT INTO deletion_plan_remote_retention(
+                    snapshot_token, ordinal, provider, purpose,
+                    retention_mode, retention_provenance, dispatched_at_ms,
+                    policy_expires_at_ms, status
+                 ) VALUES (
+                    'p12-v16-plan', 0, 'provider', 'fixture',
+                    'bounded', 'p12-v16', 25, 10000,
+                    'provider_deletion_unavailable'
+                 );
+                 UPDATE revision_state
+                 SET catalog_revision = 1, evidence_generation = 1,
+                     outfit_revision = 1
+                 WHERE singleton = 1;",
+            )
+            .unwrap();
+        verify_database(connection).unwrap();
+    }
+
+    fn insert_two_line_v17_authority_snapshots(connection: &Connection) {
+        connection
+            .execute_batch(
+                "INSERT INTO receipt_parses(
+                    parse_id, source_id, raw_sha256, parser_revision,
+                    sanitizer_revision, canonical_input_sha256, created_at_ms
+                 ) VALUES (
+                    '17000000-0000-4000-8000-000000000020',
+                    '17000000-0000-4000-8000-000000000001',
+                    '072e648d17768a3a229b8c0d086f805bd56c45abf780f9e4650012eadd712b36',
+                    'p12-parser-v1', 'p12-sanitizer-v1',
+                    'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+                    202
+                 );
+                 INSERT INTO receipt_extraction_runs(
+                    run_id, parse_id, provider_id, provider_revision,
+                    schema_version, schema_sha256, ruleset_revision,
+                    ruleset_sha256, parameters_json, canonical_input_sha256,
+                    parent_source_sha256, parent_fragment_hashes_json,
+                    envelope_json, output_json, output_sha256, status,
+                    created_at_ms, completed_at_ms
+                 ) VALUES (
+                    '17000000-0000-4000-8000-000000000021',
+                    '17000000-0000-4000-8000-000000000020',
+                    'fixture', 'fixture-v1', 'receipt-v1',
+                    'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+                    'fixture-rules-v1',
+                    '1111111111111111111111111111111111111111111111111111111111111111',
+                    '{}',
+                    'eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',
+                    '072e648d17768a3a229b8c0d086f805bd56c45abf780f9e4650012eadd712b36',
+                    '[]', '{}', '{}',
+                    '2222222222222222222222222222222222222222222222222222222222222222',
+                    'succeeded', 202, 202
+                 );
+                 INSERT INTO receipt_orders(
+                    order_evidence_id, run_id, line_count, created_at_ms
+                 ) VALUES (
+                    '17000000-0000-4000-8000-000000000022',
+                    '17000000-0000-4000-8000-000000000021', 2, 202
+                 );
+                 INSERT INTO receipt_order_lines(
+                    order_line_id, order_evidence_id, ordinal,
+                    event_kind, created_at_ms
+                 ) VALUES
+                 (
+                    '17000000-0000-4000-8000-000000000023',
+                    '17000000-0000-4000-8000-000000000022',
+                    0, 'purchase', 202
+                 ),
+                 (
+                    '17000000-0000-4000-8000-000000000024',
+                    '17000000-0000-4000-8000-000000000022',
+                    1, 'purchase', 202
+                 );
+                 INSERT INTO receipt_review_decisions(
+                    review_decision_id, order_evidence_id, request_id,
+                    action, receipt_revision, created_at_ms
+                 ) VALUES (
+                    '17000000-0000-4000-8000-000000000025',
+                    '17000000-0000-4000-8000-000000000022',
+                    '17000000-0000-4000-8000-000000000026',
+                    'confirm', 1, 202
+                 );
+                 INSERT INTO receipt_review_heads(
+                    order_evidence_id, review_decision_id,
+                    receipt_revision, updated_at_ms
+                 ) VALUES (
+                    '17000000-0000-4000-8000-000000000022',
+                    '17000000-0000-4000-8000-000000000025', 1, 202
+                 );
+                 INSERT INTO receipt_source_authority_heads(
+                    local_source_id, authority_id, authority_kind,
+                    order_evidence_id, review_decision_id, receipt_revision,
+                    authority_revision, updated_at_ms
+                 ) VALUES (
+                    '17000000-0000-4000-8000-000000000001',
+                    '17000000-0000-4000-8000-000000000027',
+                    'user_reviewed',
+                    '17000000-0000-4000-8000-000000000022',
+                    '17000000-0000-4000-8000-000000000025',
+                    1, 1, 202
+                 );
+                 INSERT INTO receipt_authority_snapshots(
+                    authority_snapshot_id, authority_id, local_source_id,
+                    order_evidence_id, order_line_id, review_decision_id,
+                    review_action, receipt_revision, authority_revision,
+                    values_json, provenance_json, snapshot_sha256,
+                    created_at_ms
+                 ) VALUES
+                 (
+                    '17000000-0000-4000-8000-000000000028',
+                    '17000000-0000-4000-8000-000000000027',
+                    '17000000-0000-4000-8000-000000000001',
+                    '17000000-0000-4000-8000-000000000022',
+                    '17000000-0000-4000-8000-000000000023',
+                    '17000000-0000-4000-8000-000000000025',
+                    'confirm', 1, 1, '{}', '{}',
+                    '3333333333333333333333333333333333333333333333333333333333333333',
+                    202
+                 ),
+                 (
+                    '17000000-0000-4000-8000-000000000029',
+                    '17000000-0000-4000-8000-000000000027',
+                    '17000000-0000-4000-8000-000000000001',
+                    '17000000-0000-4000-8000-000000000022',
+                    '17000000-0000-4000-8000-000000000024',
+                    '17000000-0000-4000-8000-000000000025',
+                    'confirm', 1, 1, '{}', '{}',
+                    '4444444444444444444444444444444444444444444444444444444444444444',
+                    202
+                 );
+                 UPDATE revision_state SET receipt_revision = 1
+                 WHERE singleton = 1;",
+            )
+            .unwrap();
+        verify_database(connection).unwrap();
     }
 
     fn only_backup(paths: &PrivateAppPaths) -> PathBuf {
@@ -2381,16 +2721,16 @@ mod tests {
             hash_file(backup).unwrap()
         );
         assert_eq!(evidence["source_schema_version"], 0);
-        assert_eq!(evidence["target_schema_version"], 14);
+        assert_eq!(evidence["target_schema_version"], latest_schema_version());
 
         let connection = open_connection(&paths.database).unwrap();
         assert_eq!(
             connection
                 .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            14
+            latest_schema_version()
         );
-        verify_applied_migrations(&connection, 14).unwrap();
+        verify_applied_migrations(&connection, latest_schema_version()).unwrap();
         assert_eq!(
             connection
                 .query_row(
@@ -2471,7 +2811,7 @@ mod tests {
         let evidence: serde_json::Value =
             serde_json::from_slice(&fs::read(sidecar).unwrap()).unwrap();
         assert_eq!(evidence["source_schema_version"], 1);
-        assert_eq!(evidence["target_schema_version"], 14);
+        assert_eq!(evidence["target_schema_version"], latest_schema_version());
         assert_eq!(
             evidence["backup_sha256"].as_str().unwrap(),
             hash_file(backup).unwrap()
@@ -2498,9 +2838,9 @@ mod tests {
             migrated
                 .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            14
+            latest_schema_version()
         );
-        verify_applied_migrations(&migrated, 14).unwrap();
+        verify_applied_migrations(&migrated, latest_schema_version()).unwrap();
         assert_eq!(
             migrated
                 .query_row(
@@ -2607,7 +2947,7 @@ mod tests {
         let sidecar: serde_json::Value =
             serde_json::from_slice(&fs::read(only_sidecar(&paths)).unwrap()).unwrap();
         assert_eq!(sidecar["source_schema_version"], 2);
-        assert_eq!(sidecar["target_schema_version"], 14);
+        assert_eq!(sidecar["target_schema_version"], latest_schema_version());
         assert_eq!(
             sidecar["backup_sha256"].as_str().unwrap(),
             hash_file(&backup).unwrap()
@@ -2674,7 +3014,7 @@ mod tests {
             migrated
                 .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            14
+            latest_schema_version()
         );
         assert_eq!(
             migrated
@@ -2690,7 +3030,7 @@ mod tests {
         let sidecar: serde_json::Value =
             serde_json::from_slice(&fs::read(only_sidecar(&paths)).unwrap()).unwrap();
         assert_eq!(sidecar["source_schema_version"], 3);
-        assert_eq!(sidecar["target_schema_version"], 14);
+        assert_eq!(sidecar["target_schema_version"], latest_schema_version());
         assert_eq!(
             sidecar["backup_sha256"].as_str().unwrap(),
             hash_file(&backup).unwrap()
@@ -2754,9 +3094,9 @@ mod tests {
             migrated
                 .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            14
+            latest_schema_version()
         );
-        verify_applied_migrations(&migrated, 14).unwrap();
+        verify_applied_migrations(&migrated, latest_schema_version()).unwrap();
         assert_eq!(
             migrated
                 .query_row(
@@ -2805,7 +3145,7 @@ mod tests {
         let sidecar: serde_json::Value =
             serde_json::from_slice(&fs::read(only_sidecar(&paths)).unwrap()).unwrap();
         assert_eq!(sidecar["source_schema_version"], 4);
-        assert_eq!(sidecar["target_schema_version"], 14);
+        assert_eq!(sidecar["target_schema_version"], latest_schema_version());
         assert_eq!(sidecar["backup_sha256"], backup_hash);
 
         let retained = open_connection(&backup).unwrap();
@@ -3079,7 +3419,7 @@ mod tests {
             migrated
                 .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            14
+            latest_schema_version()
         );
         assert_eq!(
             migrated
@@ -3124,7 +3464,7 @@ mod tests {
         let sidecar: serde_json::Value =
             serde_json::from_slice(&fs::read(only_sidecar(&paths)).unwrap()).unwrap();
         assert_eq!(sidecar["source_schema_version"], 5);
-        assert_eq!(sidecar["target_schema_version"], 14);
+        assert_eq!(sidecar["target_schema_version"], latest_schema_version());
         assert_eq!(sidecar["backup_sha256"], hash_file(&backup).unwrap());
     }
 
@@ -3179,7 +3519,7 @@ mod tests {
     }
 
     #[test]
-    fn fresh_v14_schema_is_strict_restrictive_and_append_only() {
+    fn fresh_schema_is_strict_restrictive_and_append_only() {
         let temporary = tempfile::tempdir().unwrap();
         let paths = PrivateAppPaths::create(temporary.path().join("app")).unwrap();
         let database = Database::open(&paths, 1).unwrap();
@@ -3189,9 +3529,9 @@ mod tests {
             connection
                 .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            14
+            latest_schema_version()
         );
-        verify_applied_migrations(&connection, 14).unwrap();
+        verify_applied_migrations(&connection, latest_schema_version()).unwrap();
 
         let strict_count: i64 = connection
             .query_row(
@@ -3280,7 +3620,7 @@ mod tests {
             migrated
                 .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            14
+            latest_schema_version()
         );
         assert_eq!(
             migrated
@@ -3306,7 +3646,7 @@ mod tests {
         let sidecar: serde_json::Value =
             serde_json::from_slice(&fs::read(only_sidecar(&paths)).unwrap()).unwrap();
         assert_eq!(sidecar["source_schema_version"], 8);
-        assert_eq!(sidecar["target_schema_version"], 14);
+        assert_eq!(sidecar["target_schema_version"], latest_schema_version());
         assert_eq!(
             sidecar["backup_sha256"].as_str().unwrap(),
             hash_file(&backup).unwrap()
@@ -3415,9 +3755,9 @@ mod tests {
             migrated
                 .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
                 .unwrap(),
-            14
+            latest_schema_version()
         );
-        verify_applied_migrations(&migrated, 14).unwrap();
+        verify_applied_migrations(&migrated, latest_schema_version()).unwrap();
         assert_eq!(
             migrated
                 .query_row(
@@ -3484,7 +3824,7 @@ mod tests {
         let sidecar: serde_json::Value =
             serde_json::from_slice(&fs::read(only_sidecar(&paths)).unwrap()).unwrap();
         assert_eq!(sidecar["source_schema_version"], 11);
-        assert_eq!(sidecar["target_schema_version"], 14);
+        assert_eq!(sidecar["target_schema_version"], latest_schema_version());
     }
 
     #[test]
@@ -4018,6 +4358,392 @@ mod tests {
     }
 
     #[test]
+    fn migration_0017_preserves_populated_v16_and_reopens() {
+        let temporary = tempfile::tempdir().unwrap();
+        let paths = PrivateAppPaths::create(temporary.path().join("app")).unwrap();
+        assert_eq!(create_database_at_version(&paths, 10, 16), 16);
+        let connection = open_connection(&paths.database).unwrap();
+        populate_v16_migration_domains(&connection, &paths);
+        drop(connection);
+
+        let database = Database::open(&paths, 200).unwrap();
+        let connection = database.connection().unwrap();
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            17
+        );
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "foreign_keys", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "legacy_alter_table", |row| { row.get::<_, i64>(0) })
+                .unwrap(),
+            0
+        );
+        verify_applied_migrations(&connection, 17).unwrap();
+        verify_database(&connection).unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT sha256 FROM schema_migrations WHERE version = 17",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            MIGRATION_0017_SHA256.trim()
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT
+                       (SELECT COUNT(*) FROM evidence
+                         WHERE evidence_id =
+                           '17000000-0000-4000-8000-000000000002')
+                       +(SELECT COUNT(*) FROM item_evidence)
+                       +(SELECT COUNT(*) FROM outfit_members)
+                       +(SELECT COUNT(*) FROM catalog_decisions)
+                       +(SELECT COUNT(*) FROM decision_entities)
+                       +(SELECT COUNT(*) FROM deletion_previews)
+                       +(SELECT COUNT(*) FROM deletion_preview_items)
+                       +(SELECT COUNT(*) FROM deletion_plans)
+                       +(SELECT COUNT(*) FROM deletion_plan_entries)
+                       +(SELECT COUNT(*) FROM deletion_plan_backup_retention)
+                       +(SELECT COUNT(*) FROM deletion_plan_remote_retention)
+                       +(SELECT COUNT(*) FROM receipt_command_entities)",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            12
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT
+                       (SELECT COUNT(*) FROM pragma_foreign_key_list('item_evidence')
+                         WHERE \"table\" = 'evidence')
+                       +(SELECT COUNT(*) FROM pragma_foreign_key_list('outfit_members')
+                         WHERE \"table\" = 'evidence')
+                       +(SELECT COUNT(*) FROM pragma_foreign_key_list('decision_entities')
+                         WHERE \"table\" = 'catalog_decisions')
+                       +(SELECT COUNT(*) FROM pragma_foreign_key_list('deletion_preview_items')
+                         WHERE \"table\" = 'deletion_previews')
+                       +(SELECT COUNT(*) FROM pragma_foreign_key_list('deletion_plan_entries')
+                         WHERE \"table\" = 'deletion_plans')
+                       +(SELECT COUNT(*) FROM pragma_foreign_key_list(
+                           'deletion_plan_backup_retention'
+                         ) WHERE \"table\" = 'deletion_plans')
+                       +(SELECT COUNT(*) FROM pragma_foreign_key_list(
+                           'deletion_plan_remote_retention'
+                         ) WHERE \"table\" = 'deletion_plans')",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            9
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM pragma_table_list
+                     WHERE name IN (
+                         'receipt_authority_snapshots',
+                         'receipt_purchase_unit_promotions',
+                         'receipt_purchase_unit_deletions'
+                     ) AND strict = 1",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            3
+        );
+        insert_two_line_v17_authority_snapshots(&connection);
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*)
+                     FROM receipt_authority_snapshots
+                     WHERE local_source_id =
+                               '17000000-0000-4000-8000-000000000001'
+                       AND authority_id =
+                               '17000000-0000-4000-8000-000000000027'
+                       AND authority_revision = 1",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            2
+        );
+        connection
+            .execute(
+                "INSERT INTO receipt_purchase_unit_deletions(
+                    purchase_unit_id, identity_version, local_source_id,
+                    authority_id, authority_revision, order_evidence_id,
+                    order_line_id, unit_ordinal, deletion_request_id,
+                    created_at_ms
+                 ) VALUES (
+                    '17000000-0000-4000-8000-000000000030',
+                    'receipt-purchase-unit-v1',
+                    '17000000-0000-4000-8000-000000000001',
+                    '17000000-0000-4000-8000-000000000027', 1,
+                    '17000000-0000-4000-8000-000000000022',
+                    '17000000-0000-4000-8000-000000000023', 0,
+                    '17000000-0000-4000-8000-000000000031', 202
+                 )",
+                [],
+            )
+            .unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT authority_revision
+                     FROM receipt_purchase_unit_deletions
+                     WHERE purchase_unit_id =
+                           '17000000-0000-4000-8000-000000000030'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_schema
+                     WHERE name GLOB 'p12_*_v16'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0
+        );
+
+        connection
+            .execute(
+                "INSERT INTO evidence(
+                    evidence_id, source_id, part_id, evidence_kind, state,
+                    created_at_ms, updated_at_ms
+                 ) VALUES (
+                    '17000000-0000-4000-8000-000000000010',
+                    '17000000-0000-4000-8000-000000000001',
+                    NULL, 'receipt_purchase_unit', 'assigned', 201, 201
+                 )",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO catalog_decisions(
+                    decision_id, request_id, decision_kind, catalog_revision,
+                    forward_json, inverse_json, created_at_ms
+                 ) VALUES (
+                    '17000000-0000-4000-8000-000000000011',
+                    '17000000-0000-4000-8000-000000000012',
+                    'promote_receipt_purchase_unit', 2, '{}',
+                    '{\"reversible\":false}', 201
+                 )",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO deletion_previews(
+                    snapshot_token, target_kind, target_id, catalog_revision,
+                    evidence_generation, photo_revision,
+                    reconciliation_revision, outfit_revision,
+                    try_on_revision, photokit_revision, created_at_ms
+                 ) VALUES (
+                    'p12-v17-preview', 'purchase_unit',
+                    '17000000-0000-4000-8000-000000000013',
+                    2, 2, 0, 0, 1, 0, 0, 201
+                 )",
+                [],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO deletion_preview_items(
+                    snapshot_token, dependency_class, entity_id, sort_key
+                 ) VALUES (
+                    'p12-v17-preview', 'retained_shared_records',
+                    '17000000-0000-4000-8000-000000000001', 'source'
+                 )",
+                [],
+            )
+            .unwrap();
+        assert!(connection
+            .execute(
+                "INSERT INTO evidence(
+                    evidence_id, source_id, evidence_kind, state,
+                    created_at_ms, updated_at_ms
+                 ) VALUES (
+                    '17000000-0000-4000-8000-000000000014',
+                    '17000000-0000-4000-8000-000000000001',
+                    'unknown_kind', 'assigned', 201, 201
+                 )",
+                [],
+            )
+            .is_err());
+        verify_database(&connection).unwrap();
+        drop(connection);
+        drop(database);
+
+        let backup = only_backup(&paths);
+        let backup_connection = open_connection(&backup).unwrap();
+        assert_eq!(
+            backup_connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            16
+        );
+        verify_applied_migrations(&backup_connection, 16).unwrap();
+        verify_database(&backup_connection).unwrap();
+        assert_eq!(
+            backup_connection
+                .query_row("SELECT COUNT(*) FROM item_evidence", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            1
+        );
+        drop(backup_connection);
+
+        let reopened = Database::open(&paths, 300).unwrap();
+        let reopened_connection = reopened.connection().unwrap();
+        verify_applied_migrations(&reopened_connection, 17).unwrap();
+        verify_database(&reopened_connection).unwrap();
+        assert_eq!(
+            reopened_connection
+                .query_row(
+                    "SELECT COUNT(*) FROM deletion_preview_items
+                     WHERE dependency_class = 'retained_shared_records'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            reopened_connection
+                .query_row(
+                    "SELECT COUNT(*) FROM receipt_authority_snapshots
+                     WHERE authority_id =
+                           '17000000-0000-4000-8000-000000000027'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            2
+        );
+    }
+
+    #[test]
+    fn interrupted_migration_0017_restores_v16_pragmas_and_foreign_keys() {
+        let temporary = tempfile::tempdir().unwrap();
+        let paths = PrivateAppPaths::create(temporary.path().join("app")).unwrap();
+        assert_eq!(create_database_at_version(&paths, 10, 16), 16);
+        let mut connection = open_connection(&paths.database).unwrap();
+        populate_v16_migration_domains(&connection, &paths);
+        create_verified_backup(&connection, &paths, 100, 16, 17).unwrap();
+        const BAD_V17: Migration = Migration {
+            version: 17,
+            sql: "PRAGMA legacy_alter_table = ON;
+                  ALTER TABLE evidence RENAME TO p12_evidence_v16;
+                  CREATE TABLE evidence(partial INTEGER) STRICT;
+                  ALTER TABLE deletion_plans RENAME TO p12_deletion_plans_v16;
+                  INVALID SQL;",
+            sha256: "",
+        };
+
+        assert!(apply_migration(&mut connection, &BAD_V17, 101).is_err());
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            16
+        );
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "foreign_keys", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "legacy_alter_table", |row| { row.get::<_, i64>(0) })
+                .unwrap(),
+            0
+        );
+        verify_applied_migrations(&connection, 16).unwrap();
+        verify_database(&connection).unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT
+                       (SELECT COUNT(*) FROM evidence
+                         WHERE evidence_id =
+                           '17000000-0000-4000-8000-000000000002')
+                       +(SELECT COUNT(*) FROM item_evidence)
+                       +(SELECT COUNT(*) FROM deletion_plans)
+                       +(SELECT COUNT(*) FROM deletion_plan_entries)",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            4
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_schema
+                     WHERE name IN (
+                         'p12_evidence_v16', 'p12_deletion_plans_v16'
+                     )",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM pragma_foreign_key_list('item_evidence')
+                     WHERE \"table\" = 'evidence'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1
+        );
+        drop(connection);
+
+        let backup_connection = open_connection(&only_backup(&paths)).unwrap();
+        assert_eq!(
+            backup_connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            16
+        );
+        verify_applied_migrations(&backup_connection, 16).unwrap();
+        verify_database(&backup_connection).unwrap();
+        assert_eq!(
+            backup_connection
+                .query_row("SELECT COUNT(*) FROM decision_entities", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            1
+        );
+    }
+
+    #[test]
     fn migration_0014_preserves_populated_v13_reconciliation_history_without_owner_fabrication() {
         use wardrobe_core::{
             AnalyzePhotoScopeV1Request, CatalogPort, CreatePhotoScopeV1Request,
@@ -4029,7 +4755,7 @@ mod tests {
 
         let temporary = tempfile::tempdir().unwrap();
         let paths = PrivateAppPaths::create(temporary.path().join("app")).unwrap();
-        assert_eq!(create_pre_target_database(&paths, 10), 13);
+        create_v13_database(&paths, 10);
         let folder = temporary.path().join("photos");
         fs::create_dir(&folder).unwrap();
         let pixels = (0..8 * 6)
@@ -4389,10 +5115,776 @@ mod tests {
     }
 
     #[test]
+    fn migration_0015_preserves_populated_v14_gmail_state_and_reopens() {
+        let temporary = tempfile::tempdir().unwrap();
+        let paths = PrivateAppPaths::create(temporary.path().join("app")).unwrap();
+        assert_eq!(create_database_at_version(&paths, 10, 14), 14);
+
+        let account_key = "a".repeat(64);
+        let scope_fingerprint = "b".repeat(64);
+        let scope_id = "15000000-0000-4000-8000-000000000001";
+        let history_id = "987654321012345678";
+        let provider_source_id = stable_id(
+            "gmail-provider-source",
+            &format!("{account_key}\0legacy-message-id"),
+        );
+        let available_revision_id = stable_id(
+            "gmail-revision",
+            &format!("{provider_source_id}\0{}", "900"),
+        );
+        let unavailable_revision_id = stable_id(
+            "gmail-revision",
+            &format!("{provider_source_id}\0{history_id}"),
+        );
+        let available_source_id = "15000000-0000-4000-8000-000000000009";
+        let available_provenance_id = "15000000-0000-4000-8000-000000000010";
+        let available_blob = crate::BlobStore::new(&paths)
+            .put(b"old", None, 1024)
+            .unwrap();
+        let available_blob_sha256 = available_blob.sha256;
+        let credential_id = "15000000-0000-4000-8000-000000000003";
+        let save_request_id = "15000000-0000-4000-8000-000000000004";
+        let credential_locator = "gmail-migration-credential";
+        let label_name = "Receipts / 2026";
+        let label_id = "Label_987654321";
+        let saved_settings_request_id = "15000000-0000-4000-8000-000000000007";
+        let interrupted_sync_request_id = "15000000-0000-4000-8000-000000000008";
+
+        let connection = open_connection(&paths.database).unwrap();
+        connection
+            .execute(
+                "INSERT INTO gmail_connector_settings(
+                    singleton, oauth_client_id, label_name, page_size, max_pages,
+                    max_unique_messages, max_total_raw_bytes, updated_at_ms
+                 ) VALUES (
+                    1, 'migration.apps.googleusercontent.com', ?1, 73, 7,
+                    137, 7654321, 101
+                 )",
+                [label_name],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO credential_references(
+                    locator, credential_id, save_request_id, provider,
+                    display_label, status, created_at_ms, updated_at_ms
+                 ) VALUES (?1, ?2, ?3, 'gmail', 'Gmail migration',
+                           'active', 102, 103)",
+                params![credential_locator, credential_id, save_request_id],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO gmail_accounts(
+                    account_key, credential_locator, created_at_ms
+                 ) VALUES (?1, ?2, 104)",
+                params![account_key, credential_locator],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO gmail_scopes(
+                    scope_id, account_key, scope_fingerprint, label_id,
+                    oauth_scope, parser_revision, materialization_revision,
+                    created_at_ms
+                 ) VALUES (?1, ?2, ?3, ?4, ?5,
+                           'gmail-parser-v14', 'gmail-materializer-v14', 105)",
+                params![
+                    scope_id,
+                    account_key,
+                    scope_fingerprint,
+                    label_id,
+                    crate::GOOGLE_OAUTH_SCOPE
+                ],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO gmail_checkpoints(
+                    scope_id, history_id, updated_at_ms
+                 ) VALUES (?1, ?2, 106)",
+                params![scope_id, history_id],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO gmail_provider_sources(
+                    provider_source_id, account_key, gmail_message_id,
+                    created_at_ms
+                 ) VALUES (?1, ?2, 'legacy-message-id', 107)",
+                params![provider_source_id, account_key],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO gmail_scope_sources(
+                    scope_id, provider_source_id, account_key, first_seen_at_ms
+                 ) VALUES (?1, ?2, ?3, 108)",
+                params![scope_id, provider_source_id, account_key],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO gmail_source_revisions(
+                    revision_id, provider_source_id, history_id, availability,
+                    reason, graph_sha256, created_at_ms
+                 ) VALUES
+                    (?1, ?3, '900', 'available', 'materialized', ?5, 108),
+                    (?2, ?3, ?4, 'unavailable', 'label_removed', ?6, 109)",
+                params![
+                    available_revision_id,
+                    unavailable_revision_id,
+                    provider_source_id,
+                    history_id,
+                    "c".repeat(64),
+                    "d".repeat(64)
+                ],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO gmail_source_heads(
+                    provider_source_id, head_revision_id, availability,
+                    updated_at_ms
+                 ) VALUES (?1, ?2, 'unavailable', 110)",
+                params![provider_source_id, unavailable_revision_id],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO blobs(sha256, byte_length, created_at_ms)
+                 VALUES (?1, 3, 108)",
+                [&available_blob_sha256],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO local_sources(
+                    source_id, source_kind, identity_key, canonical_locator,
+                    raw_sha256, blob_sha256, byte_length, media_type, status,
+                    created_at_ms, updated_at_ms
+                 ) VALUES (
+                    ?1, 'eml', ?2, ?2, ?3, ?3, 3,
+                    'message/rfc822', 'imported', 108, 108
+                 )",
+                params![
+                    available_source_id,
+                    format!("gmail-revision:{available_revision_id}"),
+                    available_blob_sha256
+                ],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO source_provenance(
+                    provenance_id, source_id, request_id, observed_locator,
+                    raw_sha256, blob_sha256, observed_at_ms
+                 ) VALUES (?1, ?2, ?3, ?3, ?4, ?4, 108)",
+                params![
+                    available_provenance_id,
+                    available_source_id,
+                    format!("gmail-revision:{available_revision_id}"),
+                    available_blob_sha256
+                ],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO gmail_revision_materializations(
+                    revision_id, local_source_id, source_provenance_id,
+                    blob_sha256, mime_manifest_sha256,
+                    evidence_manifest_sha256, created_at_ms
+                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?5, 108)",
+                params![
+                    available_revision_id,
+                    available_source_id,
+                    available_provenance_id,
+                    available_blob_sha256,
+                    "2".repeat(64)
+                ],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "UPDATE gmail_connector_state
+                 SET status = 'connected', account_key = ?1, scope_id = ?2,
+                     revocation_state = NULL, updated_at_ms = 109
+                 WHERE singleton = 1",
+                params![account_key, scope_id],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO command_receipts(
+                    request_id, command_name, envelope_hash,
+                    response_json, created_at_ms
+                 ) VALUES (
+                    ?1, 'save_gmail_settings_v1', ?2,
+                    '{\"terminal\":\"saved\"}', 111
+                 )",
+                params![saved_settings_request_id, "e".repeat(64)],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO gmail_operations(
+                    request_id, command_name, request_envelope_sha256, stage,
+                    created_at_ms, updated_at_ms
+                 ) VALUES (?1, 'sync_gmail_v1', ?2, 'syncing', 112, 112)",
+                params![interrupted_sync_request_id, "f".repeat(64)],
+            )
+            .unwrap();
+        verify_database(&connection).unwrap();
+        drop(connection);
+
+        let assert_migrated = |connection: &Connection| {
+            assert_eq!(
+                connection
+                    .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                    .unwrap(),
+                latest_schema_version()
+            );
+            verify_applied_migrations(connection, latest_schema_version()).unwrap();
+            verify_database(connection).unwrap();
+            assert_eq!(
+                connection
+                    .query_row(
+                        "SELECT oauth_client_id, discovery_kind, discovery_value,
+                                page_size, max_pages, max_unique_messages,
+                                max_total_raw_bytes, updated_at_ms
+                         FROM gmail_connector_settings WHERE singleton = 1",
+                        [],
+                        |row| {
+                            Ok((
+                                row.get::<_, String>(0)?,
+                                row.get::<_, String>(1)?,
+                                row.get::<_, String>(2)?,
+                                row.get::<_, i64>(3)?,
+                                row.get::<_, i64>(4)?,
+                                row.get::<_, i64>(5)?,
+                                row.get::<_, i64>(6)?,
+                                row.get::<_, i64>(7)?,
+                            ))
+                        },
+                    )
+                    .unwrap(),
+                (
+                    "migration.apps.googleusercontent.com".into(),
+                    "label".into(),
+                    label_name.into(),
+                    73,
+                    7,
+                    137,
+                    7654321,
+                    101,
+                )
+            );
+            assert_eq!(
+                connection
+                    .query_row(
+                        "SELECT COUNT(*),
+                                SUM(available_revision_id IS NOT NULL)
+                         FROM gmail_scope_availability_observations
+                         WHERE scope_id = ?1 AND provider_source_id = ?2",
+                        params![scope_id, provider_source_id],
+                        |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+                    )
+                    .unwrap(),
+                (2, 1)
+            );
+            assert_eq!(
+                connection
+                    .query_row(
+                        "SELECT head_history_id, availability, updated_at_ms
+                         FROM gmail_scope_availability_heads
+                         WHERE scope_id = ?1 AND provider_source_id = ?2",
+                        params![scope_id, provider_source_id],
+                        |row| {
+                            Ok((
+                                row.get::<_, String>(0)?,
+                                row.get::<_, String>(1)?,
+                                row.get::<_, i64>(2)?,
+                            ))
+                        },
+                    )
+                    .unwrap(),
+                (history_id.into(), "unavailable".into(), 110)
+            );
+            assert_eq!(
+                connection
+                    .query_row(
+                        "SELECT head.head_revision_id, head.availability,
+                                revision.history_id
+                         FROM gmail_source_heads head
+                         JOIN gmail_source_revisions revision
+                           ON revision.revision_id = head.head_revision_id
+                         WHERE head.provider_source_id = ?1",
+                        [&provider_source_id],
+                        |row| {
+                            Ok((
+                                row.get::<_, String>(0)?,
+                                row.get::<_, String>(1)?,
+                                row.get::<_, String>(2)?,
+                            ))
+                        },
+                    )
+                    .unwrap(),
+                (
+                    available_revision_id.clone(),
+                    "available".into(),
+                    "900".into()
+                )
+            );
+            assert_eq!(
+                connection
+                    .query_row(
+                        "SELECT account_key, scope_fingerprint, label_id,
+                                oauth_scope, parser_revision,
+                                materialization_revision, created_at_ms,
+                                discovery_kind, discovery_value
+                         FROM gmail_scopes WHERE scope_id = ?1",
+                        [scope_id],
+                        |row| {
+                            Ok((
+                                row.get::<_, String>(0)?,
+                                row.get::<_, String>(1)?,
+                                row.get::<_, String>(2)?,
+                                row.get::<_, String>(3)?,
+                                row.get::<_, String>(4)?,
+                                row.get::<_, String>(5)?,
+                                row.get::<_, i64>(6)?,
+                                row.get::<_, String>(7)?,
+                                row.get::<_, String>(8)?,
+                            ))
+                        },
+                    )
+                    .unwrap(),
+                (
+                    account_key.clone(),
+                    scope_fingerprint.clone(),
+                    label_id.into(),
+                    crate::GOOGLE_OAUTH_SCOPE.into(),
+                    "gmail-parser-v14".into(),
+                    "gmail-materializer-v14".into(),
+                    105,
+                    "label".into(),
+                    label_name.into(),
+                )
+            );
+            assert_eq!(
+                connection
+                    .query_row(
+                        "SELECT account.credential_locator, checkpoint.history_id,
+                                checkpoint.updated_at_ms, state.status,
+                                state.account_key, state.scope_id,
+                                state.revocation_state, state.updated_at_ms
+                         FROM gmail_accounts account
+                         JOIN gmail_connector_state state
+                           ON state.account_key = account.account_key
+                         JOIN gmail_checkpoints checkpoint
+                           ON checkpoint.scope_id = state.scope_id
+                         WHERE account.account_key = ?1",
+                        [&account_key],
+                        |row| {
+                            Ok((
+                                row.get::<_, String>(0)?,
+                                row.get::<_, String>(1)?,
+                                row.get::<_, i64>(2)?,
+                                row.get::<_, String>(3)?,
+                                row.get::<_, String>(4)?,
+                                row.get::<_, String>(5)?,
+                                row.get::<_, Option<String>>(6)?,
+                                row.get::<_, i64>(7)?,
+                            ))
+                        },
+                    )
+                    .unwrap(),
+                (
+                    credential_locator.into(),
+                    history_id.into(),
+                    106,
+                    "connected".into(),
+                    account_key.clone(),
+                    scope_id.into(),
+                    None,
+                    109,
+                )
+            );
+            assert_eq!(
+                connection
+                    .query_row(
+                        "SELECT membership.scope_id,
+                                membership.provider_source_id,
+                                membership.account_key,
+                                membership.first_seen_at_ms,
+                                source.gmail_message_id,
+                                source.created_at_ms
+                         FROM gmail_scope_sources membership
+                         JOIN gmail_provider_sources source
+                           ON source.provider_source_id =
+                              membership.provider_source_id
+                         WHERE membership.scope_id = ?1",
+                        [scope_id],
+                        |row| {
+                            Ok((
+                                row.get::<_, String>(0)?,
+                                row.get::<_, String>(1)?,
+                                row.get::<_, String>(2)?,
+                                row.get::<_, i64>(3)?,
+                                row.get::<_, String>(4)?,
+                                row.get::<_, i64>(5)?,
+                            ))
+                        },
+                    )
+                    .unwrap(),
+                (
+                    scope_id.into(),
+                    provider_source_id.clone(),
+                    account_key.clone(),
+                    108,
+                    "legacy-message-id".into(),
+                    107,
+                )
+            );
+            assert_eq!(
+                connection
+                    .query_row(
+                        "SELECT credential_id, save_request_id, provider,
+                                display_label, status, created_at_ms, updated_at_ms
+                         FROM credential_references WHERE locator = ?1",
+                        [credential_locator],
+                        |row| {
+                            Ok((
+                                row.get::<_, String>(0)?,
+                                row.get::<_, String>(1)?,
+                                row.get::<_, String>(2)?,
+                                row.get::<_, String>(3)?,
+                                row.get::<_, String>(4)?,
+                                row.get::<_, i64>(5)?,
+                                row.get::<_, i64>(6)?,
+                            ))
+                        },
+                    )
+                    .unwrap(),
+                (
+                    credential_id.into(),
+                    save_request_id.into(),
+                    "gmail".into(),
+                    "Gmail migration".into(),
+                    "active".into(),
+                    102,
+                    103,
+                )
+            );
+            assert_eq!(
+                connection
+                    .query_row(
+                        "SELECT COUNT(*) FROM sqlite_schema
+                         WHERE type = 'table'
+                           AND name = 'gmail_connector_settings_v1'",
+                        [],
+                        |row| row.get::<_, i64>(0),
+                    )
+                    .unwrap(),
+                0
+            );
+            assert_eq!(
+                connection
+                    .query_row(
+                        "SELECT COUNT(*)
+                         FROM gmail_request_reservations
+                         WHERE (
+                            request_id = ?1
+                            AND command_name = 'save_gmail_settings_v1'
+                            AND envelope_hash = ?3
+                            AND created_at_ms = 111
+                         ) OR (
+                            request_id = ?2
+                            AND command_name = 'sync_gmail_v1'
+                            AND envelope_hash = ?4
+                            AND created_at_ms = 112
+                         )",
+                        params![
+                            saved_settings_request_id,
+                            interrupted_sync_request_id,
+                            "e".repeat(64),
+                            "f".repeat(64)
+                        ],
+                        |row| row.get::<_, i64>(0),
+                    )
+                    .unwrap(),
+                2
+            );
+            assert!(connection
+                .execute(
+                    "UPDATE gmail_request_reservations
+                     SET envelope_hash = ?2 WHERE request_id = ?1",
+                    params![saved_settings_request_id, "0".repeat(64)],
+                )
+                .is_err());
+            assert!(connection
+                .execute(
+                    "DELETE FROM gmail_request_reservations
+                     WHERE request_id = ?1",
+                    [saved_settings_request_id],
+                )
+                .is_err());
+        };
+
+        let database = Database::open(&paths, 200).unwrap();
+        let connection = database.connection().unwrap();
+        assert_migrated(&connection);
+        drop(connection);
+        drop(database);
+
+        let reopened = Database::open(&paths, 300).unwrap();
+        assert_migrated(&reopened.connection().unwrap());
+
+        let search_scope_id = "15000000-0000-4000-8000-000000000011";
+        let search_key = crate::gmail_sync::SyncKey {
+            account_key: account_key.clone(),
+            scope_id: search_scope_id.into(),
+            label_id: "SEARCH".into(),
+        };
+        reopened
+            .initialize_gmail_scope_v2(
+                &account_key,
+                credential_locator,
+                search_scope_id,
+                &"3".repeat(64),
+                &search_key.label_id,
+                "search",
+                "from:shop@example.com",
+                "gmail-parser-v15",
+                "gmail-materializer-v15",
+                301,
+            )
+            .unwrap();
+        let raw = b"From: shop@example.com\r\nSubject: overlap\r\n\r\nimmutable";
+        let batch = crate::gmail_sync::SyncBatch {
+            mode: crate::gmail_sync::SyncMode::Reconciled,
+            expected_checkpoint: None,
+            next_checkpoint: crate::gmail_sync::HistoryId::parse(history_id).unwrap(),
+            discovered_message_ids: vec!["legacy-message-id".into()],
+            effects: vec![crate::gmail_sync::RevisionEffect::Available {
+                message_id: "legacy-message-id".into(),
+                revision: crate::gmail_sync::HistoryId::parse(history_id).unwrap(),
+                raw: raw.to_vec(),
+            }],
+            pages: 1,
+            gateway_calls: 3,
+            raw_bytes: raw.len(),
+        };
+        crate::gmail_sync::GmailSyncStore::commit(&reopened, &search_key, &batch).unwrap();
+
+        let connection = reopened.connection().unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*)
+                     FROM gmail_source_revisions
+                     WHERE provider_source_id = ?1 AND history_id = ?2",
+                    params![provider_source_id, history_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            2
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*)
+                     FROM gmail_source_revisions
+                     WHERE provider_source_id = ?1 AND history_id = ?2
+                       AND availability = 'available'",
+                    params![provider_source_id, history_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT availability
+                     FROM gmail_scope_availability_heads
+                     WHERE scope_id = ?1",
+                    [scope_id],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "unavailable"
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT availability
+                     FROM gmail_scope_availability_heads
+                     WHERE scope_id = ?1",
+                    [search_scope_id],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "available"
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT head.availability
+                     FROM gmail_source_heads head
+                     JOIN gmail_source_revisions revision
+                       ON revision.revision_id = head.head_revision_id
+                     WHERE head.provider_source_id = ?1
+                       AND revision.history_id = ?2",
+                    params![provider_source_id, history_id],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "available"
+        );
+    }
+
+    #[test]
+    fn interrupted_migration_0015_rolls_back_to_populated_v14() {
+        let temporary = tempfile::tempdir().unwrap();
+        let paths = PrivateAppPaths::create(temporary.path().join("app")).unwrap();
+        assert_eq!(create_database_at_version(&paths, 10, 14), 14);
+        let mut connection = open_connection(&paths.database).unwrap();
+        connection
+            .execute(
+                "INSERT INTO gmail_connector_settings(
+                    singleton, oauth_client_id, label_name, page_size, max_pages,
+                    max_unique_messages, max_total_raw_bytes, updated_at_ms
+                 ) VALUES (
+                    1, 'rollback.apps.googleusercontent.com', 'Rollback label',
+                    50, 5, 100, 1048576, 20
+                 )",
+                [],
+            )
+            .unwrap();
+        const BAD_V15: Migration = Migration {
+            version: 15,
+            sql: "ALTER TABLE gmail_connector_settings
+                    RENAME TO gmail_connector_settings_v1;
+                  ALTER TABLE gmail_scopes
+                    ADD COLUMN discovery_kind TEXT NOT NULL DEFAULT 'label';
+                  INVALID SQL;",
+            sha256: "",
+        };
+
+        assert!(apply_migration(&mut connection, &BAD_V15, 30).is_err());
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            14
+        );
+        verify_applied_migrations(&connection, 14).unwrap();
+        verify_database(&connection).unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT label_name FROM gmail_connector_settings
+                     WHERE singleton = 1",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "Rollback label"
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM pragma_table_info('gmail_scopes')
+                     WHERE name = 'discovery_kind'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_schema
+                     WHERE type = 'table'
+                       AND name = 'gmail_connector_settings_v1'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0
+        );
+    }
+
+    #[test]
+    fn migration_0015_rejects_conflicting_gmail_request_identity_backfill() {
+        let temporary = tempfile::tempdir().unwrap();
+        let paths = PrivateAppPaths::create(temporary.path().join("app")).unwrap();
+        assert_eq!(create_database_at_version(&paths, 10, 14), 14);
+        let mut connection = open_connection(&paths.database).unwrap();
+        let request_id = "15000000-0000-4000-8000-000000000009";
+        connection
+            .execute(
+                "INSERT INTO gmail_operations(
+                    request_id, command_name, request_envelope_sha256, stage,
+                    created_at_ms, updated_at_ms
+                 ) VALUES (?1, 'sync_gmail_v1', ?2, 'syncing', 20, 20)",
+                params![request_id, "a".repeat(64)],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO command_receipts(
+                    request_id, command_name, envelope_hash,
+                    response_json, created_at_ms
+                 ) VALUES (
+                    ?1, 'save_gmail_settings_v2', ?2,
+                    '{\"terminal\":\"saved\"}', 21
+                 )",
+                params![request_id, "b".repeat(64)],
+            )
+            .unwrap();
+
+        assert!(apply_migration(&mut connection, &MIGRATIONS[14], 30).is_err());
+        assert_eq!(
+            connection
+                .pragma_query_value(None, "user_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            14
+        );
+        verify_applied_migrations(&connection, 14).unwrap();
+        verify_database(&connection).unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM sqlite_schema
+                     WHERE type = 'table'
+                       AND name = 'gmail_request_reservations'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT command_name, request_envelope_sha256
+                     FROM gmail_operations WHERE request_id = ?1",
+                    [request_id],
+                    |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+                )
+                .unwrap(),
+            ("sync_gmail_v1".into(), "a".repeat(64))
+        );
+    }
+
+    #[test]
     fn interrupted_migration_0014_restores_v13_and_reenables_foreign_keys() {
         let temporary = tempfile::tempdir().unwrap();
         let paths = PrivateAppPaths::create(temporary.path().join("app")).unwrap();
-        assert_eq!(create_pre_target_database(&paths, 10), 13);
+        create_v13_database(&paths, 10);
         let mut connection = open_connection(&paths.database).unwrap();
         const BAD_V14: Migration = Migration {
             version: 14,

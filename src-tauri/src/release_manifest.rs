@@ -36,6 +36,8 @@ const MODEL_SUFFIXES: [&str; 13] = [
     "wasm",
 ];
 const EXECUTABLE_SUFFIXES: [&str; 5] = ["dll", "dylib", "exe", "so", "wasm"];
+const EXPECTED_RECEIPT_INTELLIGENCE_EVALUATOR_SHA256: &str =
+    "3fd9db5e09176d6dd83616b40ece3d39a1f706612998a037e3c1293c5459b70e";
 
 pub(crate) const COMPILED_MANIFEST_BYTES: &[u8] =
     include_bytes!("../../release/generated/supply-chain-manifest-v1.json");
@@ -127,6 +129,8 @@ struct LocalProvider {
 struct RemoteServices {
     outfit_recommendation: RemoteService,
     try_on_visualization: RemoteService,
+    #[serde(default)]
+    openai_receipt_intelligence: Option<Value>,
 }
 
 #[derive(Deserialize)]
@@ -135,6 +139,23 @@ struct RemoteService {
     downloads_code: bool,
     model: String,
     provider: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReceiptIntelligenceRemoteService {
+    downloads_code: bool,
+    provider: String,
+    model: String,
+    prompt_revision: String,
+    schema_revision: String,
+    projection_revision: String,
+    retention_revision: String,
+    evaluator_sha256: String,
+    phase_spec_sha256: String,
+    requirements_sha256: String,
+    proposal_sha256: String,
+    review_sha256: String,
 }
 
 #[derive(Deserialize)]
@@ -150,6 +171,38 @@ pub(crate) fn verify_bundled_release_manifest(
     resource_root: &Path,
 ) -> Result<(), ReleaseManifestError> {
     verify_with_expected(resource_root, COMPILED_MANIFEST_BYTES)
+}
+
+pub(crate) fn receipt_intelligence_service_available() -> bool {
+    receipt_intelligence_service_available_from(COMPILED_MANIFEST_BYTES)
+}
+
+fn receipt_intelligence_service_available_from(bytes: &[u8]) -> bool {
+    let Ok(manifest) = parse_and_validate_manifest(bytes) else {
+        return false;
+    };
+    let Some(value) = manifest.models.remote_services.openai_receipt_intelligence else {
+        return false;
+    };
+    let Ok(service) = serde_json::from_value::<ReceiptIntelligenceRemoteService>(value) else {
+        return false;
+    };
+    !service.downloads_code
+        && service.provider == "openai"
+        && service.model == "gpt-5.6-sol"
+        && service.prompt_revision == "receipt-intelligence-prompt-v1"
+        && service.schema_revision == "receipt-intelligence-v1"
+        && service.projection_revision == "receipt-intelligence-projection-v1"
+        && service.retention_revision == "p11-openai-responses-retention-v1"
+        && service.evaluator_sha256 == EXPECTED_RECEIPT_INTELLIGENCE_EVALUATOR_SHA256
+        && service.phase_spec_sha256
+            == "e559ff6bcddf2d6546a50fbce22315b210c617c1454a3340ebcbd4619cb73c66"
+        && service.requirements_sha256
+            == "42c1c1a182b82571b49b926f679e56f1eb3b8fe6f7bdbb987013ada71ed98bb3"
+        && service.proposal_sha256
+            == "ab85491e61c17dbd465655e6e21dc087f079de4b7e58784a0637215847904d04"
+        && service.review_sha256
+            == "f35b29c4ac6b72cd76612b0aff2c1341de4db6e6bdf5846d050fa9cadb3161a6"
 }
 
 fn verify_with_expected(
@@ -519,6 +572,35 @@ mod tests {
         validate_dependency_inventory(&manifest).unwrap();
         validate_model_policy(&manifest.models, manifest.counts.model_artifacts).unwrap();
         verify_bundled_release_manifest(resources.path()).unwrap();
+    }
+
+    #[test]
+    fn receipt_intelligence_release_requires_exact_evaluator_revision() {
+        let manifest = |evaluator_sha256: &str| {
+            changed_manifest(|value| {
+                value["models"]["remote_services"]["openai_receipt_intelligence"] = json!({
+                    "downloads_code": false,
+                    "provider": "openai",
+                    "model": "gpt-5.6-sol",
+                    "prompt_revision": "receipt-intelligence-prompt-v1",
+                    "schema_revision": "receipt-intelligence-v1",
+                    "projection_revision": "receipt-intelligence-projection-v1",
+                    "retention_revision": "p11-openai-responses-retention-v1",
+                    "evaluator_sha256": evaluator_sha256,
+                    "phase_spec_sha256": "e559ff6bcddf2d6546a50fbce22315b210c617c1454a3340ebcbd4619cb73c66",
+                    "requirements_sha256": "42c1c1a182b82571b49b926f679e56f1eb3b8fe6f7bdbb987013ada71ed98bb3",
+                    "proposal_sha256": "ab85491e61c17dbd465655e6e21dc087f079de4b7e58784a0637215847904d04",
+                    "review_sha256": "f35b29c4ac6b72cd76612b0aff2c1341de4db6e6bdf5846d050fa9cadb3161a6"
+                });
+            })
+        };
+
+        assert!(receipt_intelligence_service_available_from(&manifest(
+            EXPECTED_RECEIPT_INTELLIGENCE_EVALUATOR_SHA256
+        )));
+        assert!(!receipt_intelligence_service_available_from(&manifest(
+            "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        )));
     }
 
     #[test]

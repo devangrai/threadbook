@@ -127,6 +127,14 @@ deletion_entity_kinds! {
     ReceiptReviewDecisions => "receipt_review_decisions",
     ReceiptReviewHeads => "receipt_review_heads",
     ReceiptCommandEntities => "receipt_command_entities",
+    ReceiptAuthoritySnapshots => "receipt_authority_snapshots",
+    ReceiptPurchaseUnitPromotions => "receipt_purchase_unit_promotions",
+    ReceiptPurchaseUnitDeletions => "receipt_purchase_unit_deletions",
+    ReceiptIntelligenceApprovals => "receipt_intelligence_approvals",
+    ReceiptIntelligenceAttempts => "receipt_intelligence_attempts",
+    ReceiptIntelligenceAudits => "receipt_intelligence_audits",
+    ReceiptIntelligenceClassifications => "receipt_intelligence_classifications",
+    ReceiptSourceAuthorityHeads => "receipt_source_authority_heads",
     ReceiptImageCandidates => "receipt_image_candidates",
     ReceiptImageCandidateOverflow => "receipt_image_candidate_overflow",
     ReceiptImageApprovals => "receipt_image_approvals",
@@ -171,6 +179,8 @@ deletion_entity_kinds! {
     GmailSourceHeads => "gmail_source_heads",
     GmailRevisionMaterializations => "gmail_revision_materializations",
     GmailScopeSources => "gmail_scope_sources",
+    GmailScopeAvailabilityObservations => "gmail_scope_availability_observations",
+    GmailScopeAvailabilityHeads => "gmail_scope_availability_heads",
     GmailOperations => "gmail_operations",
     GmailOperationRevisions => "gmail_operation_revisions",
     PhotoKitEnrollments => "photokit_enrollments",
@@ -212,6 +222,7 @@ struct CanonicalPlan<'a> {
     target_id: &'a str,
     revisions: &'a DeletionRevisionSnapshotV1,
     entries: &'a BTreeSet<PlanEntry>,
+    retained_shared_records: &'a BTreeSet<String>,
     key_cleanup_actions: &'a [KeyCleanupAction],
     backup_retention: &'a [DeletionBackupRetentionV1],
     remote_retention: &'a [DeletionRemoteRetentionV1],
@@ -220,6 +231,7 @@ struct CanonicalPlan<'a> {
 #[derive(Clone, Debug)]
 struct CompiledPlan {
     entries: BTreeSet<PlanEntry>,
+    retained_shared_records: BTreeSet<String>,
     key_cleanup_actions: Vec<KeyCleanupAction>,
     retained_shared_blob_count: u64,
 }
@@ -350,6 +362,7 @@ const RETAINED_INFRASTRUCTURE_TABLES: &[&str] = &[
     "gmail_connector_state",
     "gmail_disconnect_stages",
     "gmail_oauth_attempts",
+    "gmail_request_reservations",
     "gmail_scopes",
     "photokit_connector_state",
     "photokit_key_cleanup_intents",
@@ -387,10 +400,18 @@ macro_rules! delete_spec {
 }
 
 const DELETE_SPECS: &[DeleteSpec] = &[
+    delete_spec!("receipt_purchase_unit_promotions", 8, "order_line_id=json_extract(?1,'$[0]') AND unit_ordinal=json_extract(?1,'$[1]')"),
+    delete_spec!("receipt_purchase_unit_deletions", 9, "purchase_unit_id=json_extract(?1,'$[0]')"),
     delete_spec!("job_dependencies", 10, "job_id=json_extract(?1,'$[0]') AND depends_on_job_id=json_extract(?1,'$[1]')"),
     delete_spec!("receipt_field_citations", 10, "citation_id=json_extract(?1,'$[0]')"),
     delete_spec!("receipt_review_heads", 10, "order_evidence_id=json_extract(?1,'$[0]')"),
     delete_spec!("receipt_command_entities", 10, "request_id=json_extract(?1,'$[0]') AND entity_kind=json_extract(?1,'$[1]') AND entity_id=json_extract(?1,'$[2]')"),
+    delete_spec!("receipt_source_authority_heads", 5, "local_source_id=json_extract(?1,'$[0]')"),
+    delete_spec!("receipt_intelligence_audits", 10, "audit_id=json_extract(?1,'$[0]')"),
+    delete_spec!("receipt_intelligence_classifications", 10, "classification_id=json_extract(?1,'$[0]')"),
+    delete_spec!("receipt_intelligence_attempts", 15, "attempt_id=json_extract(?1,'$[0]')"),
+    delete_spec!("receipt_intelligence_approvals", 20, "approval_id=json_extract(?1,'$[0]')"),
+    delete_spec!("receipt_authority_snapshots", 20, "authority_snapshot_id=json_extract(?1,'$[0]')"),
     delete_spec!("receipt_image_attempt_outcomes", 10, "attempt_id=json_extract(?1,'$[0]')"),
     delete_spec!("receipt_image_hops", 10, "attempt_id=json_extract(?1,'$[0]') AND hop_ordinal=json_extract(?1,'$[1]')"),
     delete_spec!("receipt_remote_images", 10, "image_id=json_extract(?1,'$[0]')"),
@@ -403,6 +424,8 @@ const DELETE_SPECS: &[DeleteSpec] = &[
     delete_spec!("reconciliation_decision_heads", 10, "case_id=json_extract(?1,'$[0]')"),
     delete_spec!("reconciliation_command_entities", 10, "request_id=json_extract(?1,'$[0]') AND entity_kind=json_extract(?1,'$[1]') AND entity_id=json_extract(?1,'$[2]')"),
     delete_spec!("reconciliation_evidence_input_hashes", 10, "evidence_id=json_extract(?1,'$[0]') AND input_ordinal=json_extract(?1,'$[1]')"),
+    delete_spec!("gmail_scope_availability_heads", 5, "scope_id=json_extract(?1,'$[0]') AND provider_source_id=json_extract(?1,'$[1]')"),
+    delete_spec!("gmail_scope_availability_observations", 7, "scope_id=json_extract(?1,'$[0]') AND provider_source_id=json_extract(?1,'$[1]') AND history_id=json_extract(?1,'$[2]')"),
     delete_spec!("gmail_source_heads", 10, "provider_source_id=json_extract(?1,'$[0]')"),
     delete_spec!("gmail_scope_sources", 10, "scope_id=json_extract(?1,'$[0]') AND provider_source_id=json_extract(?1,'$[1]')"),
     delete_spec!("gmail_operation_revisions", 10, "request_id=json_extract(?1,'$[0]') AND revision_id=json_extract(?1,'$[1]')"),
@@ -444,7 +467,7 @@ const DELETE_SPECS: &[DeleteSpec] = &[
     delete_spec!("derivatives", 30, "derivative_id=json_extract(?1,'$[0]')"),
     delete_spec!("remote_references", 30, "remote_reference_id=json_extract(?1,'$[0]')"),
     delete_spec!("receipt_fields", 30, "field_id=json_extract(?1,'$[0]')"),
-    delete_spec!("receipt_variant_evidence", 30, "variant_evidence_id=json_extract(?1,'$[0]')"),
+    delete_spec!("receipt_variant_evidence", 31, "variant_evidence_id=json_extract(?1,'$[0]')"),
     delete_spec!("receipt_order_lines", 35, "order_line_id=json_extract(?1,'$[0]')"),
     delete_spec!("receipt_image_candidates", 35, "candidate_id=json_extract(?1,'$[0]')"),
     delete_spec!("receipt_image_candidate_overflow", 35, "parse_id=json_extract(?1,'$[0]')"),
@@ -457,7 +480,7 @@ const DELETE_SPECS: &[DeleteSpec] = &[
     delete_spec!("outfit_recommendation_attempts", 35, "attempt_id=json_extract(?1,'$[0]')"),
     delete_spec!("try_on_assets", 35, "approval_id=json_extract(?1,'$[0]') AND asset_ordinal=json_extract(?1,'$[1]')"),
     delete_spec!("outfits", 40, "outfit_id=json_extract(?1,'$[0]')"),
-    delete_spec!("receipt_review_decisions", 40, "review_decision_id=json_extract(?1,'$[0]')"),
+    delete_spec!("receipt_review_decisions", 39, "review_decision_id=json_extract(?1,'$[0]')"),
     delete_spec!("receipt_orders", 40, "order_evidence_id=json_extract(?1,'$[0]')"),
     delete_spec!("photo_scope_members", 650, "scope_id=json_extract(?1,'$[0]') AND member_ordinal=json_extract(?1,'$[1]')"),
     delete_spec!("photo_owner_reviews", 620, "owner_review_id=json_extract(?1,'$[0]')"),
@@ -546,6 +569,7 @@ pub(crate) fn prepare_plan(
             target_id,
             revisions: &revisions,
             entries: &compiled.entries,
+            retained_shared_records: &compiled.retained_shared_records,
             key_cleanup_actions: &compiled.key_cleanup_actions,
             backup_retention: &backup_retention,
             remote_retention: &remote_retention,
@@ -741,6 +765,7 @@ fn validate_schema_classification(connection: &Connection) -> PlatformResult<()>
 
 fn compile_entries(connection: &Connection, snapshot_token: &str) -> PlatformResult<CompiledPlan> {
     let mut entries = BTreeSet::new();
+    let mut retained_shared_records = BTreeSet::new();
     augment_photokit_entries(connection, snapshot_token, &mut entries)?;
     let key_cleanup_actions = compile_key_cleanup_actions(connection, snapshot_token)?;
     let mut statement = connection.prepare(
@@ -754,6 +779,10 @@ fn compile_entries(connection: &Connection, snapshot_token: &str) -> PlatformRes
         .collect::<Result<Vec<_>, _>>()?;
     for (class, id) in rows {
         if class == "retained_shared_blobs" {
+            continue;
+        }
+        if class == "retained_shared_records" {
+            retained_shared_records.insert(id);
             continue;
         }
         if id.len() == 64 && id.bytes().all(|byte| byte.is_ascii_hexdigit()) {
@@ -789,6 +818,7 @@ fn compile_entries(connection: &Connection, snapshot_token: &str) -> PlatformRes
     let retained_shared_blob_count = reconcile_blob_entries(connection, &mut entries)?;
     Ok(CompiledPlan {
         entries,
+        retained_shared_records,
         key_cleanup_actions,
         retained_shared_blob_count,
     })
@@ -1215,6 +1245,41 @@ fn add_prefixed_entry(
             "order_evidence_id",
         ),
         (
+            "receipt_intelligence_approval:",
+            "receipt_intelligence_approvals",
+            "approval_id",
+        ),
+        (
+            "receipt_intelligence_attempt:",
+            "receipt_intelligence_attempts",
+            "attempt_id",
+        ),
+        (
+            "receipt_intelligence_classification:",
+            "receipt_intelligence_classifications",
+            "classification_id",
+        ),
+        (
+            "receipt_intelligence_audit:",
+            "receipt_intelligence_audits",
+            "audit_id",
+        ),
+        (
+            "receipt_source_authority_head:",
+            "receipt_source_authority_heads",
+            "local_source_id",
+        ),
+        (
+            "receipt_authority_snapshot:",
+            "receipt_authority_snapshots",
+            "authority_snapshot_id",
+        ),
+        (
+            "receipt_purchase_unit_deletion:",
+            "receipt_purchase_unit_deletions",
+            "purchase_unit_id",
+        ),
+        (
             "receipt_image_candidate:",
             "receipt_image_candidates",
             "candidate_id",
@@ -1400,6 +1465,11 @@ fn add_prefixed_entry(
             &["item_id", "evidence_id"],
         ),
         (
+            "receipt_purchase_unit_promotion:",
+            "receipt_purchase_unit_promotions",
+            &["order_line_id", "unit_ordinal"],
+        ),
+        (
             "receipt_image_hop:",
             "receipt_image_hops",
             &["attempt_id", "hop_ordinal"],
@@ -1428,6 +1498,16 @@ fn add_prefixed_entry(
             "gmail_scope_source:",
             "gmail_scope_sources",
             &["scope_id", "provider_source_id"],
+        ),
+        (
+            "gmail_scope_availability_head:",
+            "gmail_scope_availability_heads",
+            &["scope_id", "provider_source_id"],
+        ),
+        (
+            "gmail_scope_availability_observation:",
+            "gmail_scope_availability_observations",
+            &["scope_id", "provider_source_id", "history_id"],
         ),
         (
             "gmail_operation_revision:",
@@ -1676,6 +1756,132 @@ fn expand_parent_rows(
     connection: &Connection,
     entries: &mut BTreeSet<PlanEntry>,
 ) -> PlatformResult<()> {
+    let local_sources = entries
+        .iter()
+        .filter(|entry| entry.entity_kind == DeletionEntityKind::LocalSources)
+        .filter_map(|entry| serde_json::from_str::<Vec<String>>(&entry.key_json).ok())
+        .filter_map(|keys| keys.into_iter().next())
+        .collect::<Vec<_>>();
+    for local_source_id in local_sources {
+        add_existing_simple(
+            connection,
+            entries,
+            "receipt_source_authority_heads",
+            "local_source_id",
+            &local_source_id,
+        )?;
+        let mut approvals = connection.prepare(
+            "SELECT approval_id
+             FROM receipt_intelligence_approvals
+             WHERE local_source_id = ?1
+             ORDER BY approval_id",
+        )?;
+        for approval_id in approvals
+            .query_map([&local_source_id], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?
+        {
+            add_existing_simple(
+                connection,
+                entries,
+                "receipt_intelligence_approvals",
+                "approval_id",
+                &approval_id,
+            )?;
+        }
+        let mut attempts = connection.prepare(
+            "SELECT attempt_id
+             FROM receipt_intelligence_attempts
+             WHERE local_source_id = ?1
+             ORDER BY attempt_id",
+        )?;
+        for attempt_id in attempts
+            .query_map([&local_source_id], |row| row.get::<_, String>(0))?
+            .collect::<Result<Vec<_>, _>>()?
+        {
+            add_existing_simple(
+                connection,
+                entries,
+                "receipt_intelligence_attempts",
+                "attempt_id",
+                &attempt_id,
+            )?;
+            let mut classifications = connection.prepare(
+                "SELECT classification_id
+                 FROM receipt_intelligence_classifications
+                 WHERE attempt_id = ?1
+                 ORDER BY classification_id",
+            )?;
+            for classification_id in classifications
+                .query_map([&attempt_id], |row| row.get::<_, String>(0))?
+                .collect::<Result<Vec<_>, _>>()?
+            {
+                add_existing_simple(
+                    connection,
+                    entries,
+                    "receipt_intelligence_classifications",
+                    "classification_id",
+                    &classification_id,
+                )?;
+            }
+            let mut audits = connection.prepare(
+                "SELECT audit_id
+                 FROM receipt_intelligence_audits
+                 WHERE attempt_id = ?1
+                 ORDER BY audit_id",
+            )?;
+            for audit_id in audits
+                .query_map([&attempt_id], |row| row.get::<_, String>(0))?
+                .collect::<Result<Vec<_>, _>>()?
+            {
+                add_existing_simple(
+                    connection,
+                    entries,
+                    "receipt_intelligence_audits",
+                    "audit_id",
+                    &audit_id,
+                )?;
+            }
+        }
+    }
+
+    let gmail_memberships = entries
+        .iter()
+        .filter(|entry| entry.entity_kind == DeletionEntityKind::GmailScopeSources)
+        .filter_map(|entry| serde_json::from_str::<Vec<String>>(&entry.key_json).ok())
+        .filter(|keys| keys.len() == 2)
+        .collect::<Vec<_>>();
+    for keys in gmail_memberships {
+        let scope_id = &keys[0];
+        let provider_source_id = &keys[1];
+        add_existing_composite(
+            connection,
+            entries,
+            "gmail_scope_availability_heads",
+            &["scope_id", "provider_source_id"],
+            &format!("{scope_id}:{provider_source_id}"),
+        )?;
+        let mut observations = connection.prepare(
+            "SELECT history_id
+             FROM gmail_scope_availability_observations
+             WHERE scope_id = ?1 AND provider_source_id = ?2
+             ORDER BY history_id",
+        )?;
+        for history_id in observations
+            .query_map(params![scope_id, provider_source_id], |row| {
+                row.get::<_, String>(0)
+            })?
+            .collect::<Result<Vec<_>, _>>()?
+        {
+            add_existing_composite(
+                connection,
+                entries,
+                "gmail_scope_availability_observations",
+                &["scope_id", "provider_source_id", "history_id"],
+                &format!("{scope_id}:{provider_source_id}:{history_id}"),
+            )?;
+        }
+    }
+
     let attempts = entries
         .iter()
         .filter(|entry| entry.entity_kind == DeletionEntityKind::OutfitRecommendationAttempts)
@@ -2056,6 +2262,7 @@ fn load_and_compare_live_plan(
             target_id: &stored.1,
             revisions: &revisions,
             entries: &live.entries,
+            retained_shared_records: &live.retained_shared_records,
             key_cleanup_actions: &live.key_cleanup_actions,
             backup_retention: &backup_retention,
             remote_retention: &remote_retention,
@@ -2089,23 +2296,11 @@ fn require_live_target(
     target_kind: DeletionTargetKindV1,
     target_id: &str,
 ) -> PlatformResult<()> {
-    let sql = match target_kind {
-        DeletionTargetKindV1::ImportRoot => "SELECT 1 FROM import_roots WHERE root_id=?1",
-        DeletionTargetKindV1::Source => "SELECT 1 FROM local_sources WHERE source_id=?1",
-        DeletionTargetKindV1::Item => "SELECT 1 FROM catalog_items WHERE item_id=?1",
-        DeletionTargetKindV1::PhotoKitEnrollment => {
-            "SELECT 1 FROM photokit_enrollments WHERE enrollment_epoch=?1"
-        }
-        DeletionTargetKindV1::PhotoKitAsset => "SELECT 1 FROM photokit_assets WHERE asset_id=?1",
-    };
-    if connection
-        .query_row(sql, [target_id], |_| Ok(()))
-        .optional()?
-        .is_none()
-    {
-        return Err(PlatformError::Conflict("snapshot_expired"));
+    match crate::catalog_repository::require_deletion_target(connection, target_kind, target_id) {
+        Ok(()) => Ok(()),
+        Err(PlatformError::InvalidInput(_)) => Err(PlatformError::Conflict("snapshot_expired")),
+        Err(error) => Err(error),
     }
-    Ok(())
 }
 
 fn prepare_photokit_deletion(
@@ -2180,7 +2375,9 @@ fn prepare_photokit_deletion(
         }
         DeletionTargetKindV1::ImportRoot
         | DeletionTargetKindV1::Source
-        | DeletionTargetKindV1::Item => {
+        | DeletionTargetKindV1::Item
+        | DeletionTargetKindV1::PurchaseUnit
+        | DeletionTargetKindV1::ReceiptPurchaseUnitEvidence => {
             if !key_cleanup_actions.is_empty() {
                 return Err(PlatformError::Corrupt("photokit_key_cleanup_plan_action"));
             }
@@ -2320,6 +2517,13 @@ impl Database {
             &plan.target_id,
             &plan.key_cleanup_actions,
             &run_text,
+            now_ms,
+        )?;
+        crate::catalog_repository::ensure_purchase_unit_deletion_authority(
+            &transaction,
+            plan.target_kind,
+            &plan.target_id,
+            &request.request_id.to_string(),
             now_ms,
         )?;
         for entry in &plan.entries {
@@ -3333,6 +3537,8 @@ fn target_kind_db(value: DeletionTargetKindV1) -> &'static str {
         DeletionTargetKindV1::ImportRoot => "import_root",
         DeletionTargetKindV1::Source => "source",
         DeletionTargetKindV1::Item => "item",
+        DeletionTargetKindV1::PurchaseUnit => "purchase_unit",
+        DeletionTargetKindV1::ReceiptPurchaseUnitEvidence => "receipt_purchase_unit_evidence",
         DeletionTargetKindV1::PhotoKitEnrollment => "photokit_enrollment",
         DeletionTargetKindV1::PhotoKitAsset => "photokit_asset",
     }
@@ -3343,6 +3549,8 @@ fn parse_target_kind(value: &str) -> PlatformResult<DeletionTargetKindV1> {
         "import_root" => Ok(DeletionTargetKindV1::ImportRoot),
         "source" => Ok(DeletionTargetKindV1::Source),
         "item" => Ok(DeletionTargetKindV1::Item),
+        "purchase_unit" => Ok(DeletionTargetKindV1::PurchaseUnit),
+        "receipt_purchase_unit_evidence" => Ok(DeletionTargetKindV1::ReceiptPurchaseUnitEvidence),
         "photokit_enrollment" => Ok(DeletionTargetKindV1::PhotoKitEnrollment),
         "photokit_asset" => Ok(DeletionTargetKindV1::PhotoKitAsset),
         _ => Err(PlatformError::Corrupt("deletion_target_kind")),
@@ -3477,6 +3685,38 @@ mod tests {
         APPLE_VISION_PERSON_DETECTION_PROVIDER_REVISION_V1, LOCAL_PERSON_DETECTION_CONTRACT_V1,
         PHOTO_PREPROCESSING_REVISION_V1, SCHEMA_VERSION_V1,
     };
+
+    #[test]
+    fn retained_shared_records_are_hashed_but_not_compiled_for_execution() {
+        let (_temporary, _paths, database) = test_database();
+        let connection = database.connection().unwrap();
+        let token = "retained-record-plan";
+        connection
+            .execute(
+                "INSERT INTO deletion_previews(
+                    snapshot_token,target_kind,target_id,catalog_revision,
+                    evidence_generation,photo_revision,reconciliation_revision,
+                    outfit_revision,try_on_revision,photokit_revision,created_at_ms
+                 ) VALUES(?1,'purchase_unit',?2,0,0,0,0,0,0,0,1)",
+                params![token, Uuid::new_v4().to_string()],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO deletion_preview_items(
+                    snapshot_token,dependency_class,entity_id,sort_key
+                 ) VALUES(?1,'retained_shared_records',?2,?2)",
+                params![token, "retained_receipt_source:test"],
+            )
+            .unwrap();
+
+        let compiled = compile_entries(&connection, token).unwrap();
+        assert!(compiled.entries.is_empty());
+        assert_eq!(
+            compiled.retained_shared_records,
+            BTreeSet::from(["retained_receipt_source:test".to_owned()])
+        );
+    }
 
     #[derive(Default)]
     struct CleanupKeys {
@@ -3710,23 +3950,33 @@ mod tests {
         let (_temporary, paths, database) = test_database();
         let connection = database.connection().unwrap();
         validate_schema_classification(&connection).unwrap();
+        assert!(RETAINED_INFRASTRUCTURE_TABLES.contains(&"gmail_request_reservations"));
+        assert!(!DeletionEntityKind::ALL
+            .iter()
+            .any(|kind| kind.as_str() == "gmail_request_reservations"));
         let tables = DELETE_SPECS
             .iter()
             .map(|spec| spec.table)
             .collect::<BTreeSet<_>>();
         assert_eq!(tables.len(), DELETE_SPECS.len());
         let migration = format!(
-            "{}\n{}\n{}",
+            "{}\n{}\n{}\n{}\n{}\n{}",
             include_str!("../migrations/0011_hard_deletion.sql"),
             include_str!("../migrations/0012_photokit_connector.sql"),
-            include_str!("../migrations/0014_photo_owner_authority.sql")
+            include_str!("../migrations/0014_photo_owner_authority.sql"),
+            include_str!("../migrations/0015_gmail_query_discovery.sql"),
+            include_str!("../migrations/0016_receipt_intelligence.sql"),
+            include_str!("../migrations/0017_receipt_purchase_unit_promotion.sql")
         );
         let compact_migration = migration
             .chars()
             .filter(|character| !character.is_whitespace())
             .collect::<String>();
         for table in tables {
-            assert!(migration.contains(&format!("BEFORE DELETE ON {table}")));
+            assert!(
+                migration.contains(&format!("BEFORE DELETE ON {table}")),
+                "missing hard-deletion trigger for {table}"
+            );
             let primary_key_sql = format!(
                 "SELECT name FROM pragma_table_info('{table}')
                  WHERE pk>0 ORDER BY pk"
@@ -3757,6 +4007,100 @@ mod tests {
             assert!(migration.contains(&format!("BEFORE DELETE ON {}", owner.kind.as_str())));
         }
         assert!(paths.database.is_file());
+    }
+
+    #[test]
+    fn gmail_scope_availability_rows_are_guarded_and_planned_with_membership() {
+        let (_temporary, _paths, database) = test_database();
+        let account_key = "a".repeat(64);
+        let scope_id = "15111111-1111-4111-8111-111111111111";
+        let provider_source_id = "15222222-2222-4222-8222-222222222222";
+        let connection = database.connection().unwrap();
+        connection
+            .execute(
+                "INSERT INTO gmail_accounts(account_key, created_at_ms)
+                 VALUES(?1, 1)",
+                [&account_key],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO gmail_scopes(
+                    scope_id, account_key, scope_fingerprint, label_id,
+                    oauth_scope, parser_revision, materialization_revision,
+                    created_at_ms, discovery_kind, discovery_value
+                 ) VALUES(?1, ?2, ?3, 'Label_1', ?4, 'parser-v1',
+                          'materializer-v1', 1, 'label', 'Receipts')",
+                params![
+                    scope_id,
+                    account_key,
+                    "b".repeat(64),
+                    crate::GOOGLE_OAUTH_SCOPE
+                ],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO gmail_provider_sources(
+                    provider_source_id, account_key, gmail_message_id,
+                    created_at_ms
+                 ) VALUES(?1, ?2, 'message-1', 1)",
+                params![provider_source_id, account_key],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO gmail_scope_sources(
+                    scope_id, provider_source_id, account_key, first_seen_at_ms
+                 ) VALUES(?1, ?2, ?3, 1)",
+                params![scope_id, provider_source_id, account_key],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO gmail_scope_availability_observations(
+                    scope_id, provider_source_id, account_key, history_id,
+                    available_revision_id, availability, reason, observed_at_ms
+                 ) VALUES(?1, ?2, ?3, '10', NULL, 'unavailable',
+                          'label_removed', 2)",
+                params![scope_id, provider_source_id, account_key],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO gmail_scope_availability_heads(
+                    scope_id, provider_source_id, account_key, head_history_id,
+                    availability, updated_at_ms
+                 ) VALUES(?1, ?2, ?3, '10', 'unavailable', 2)",
+                params![scope_id, provider_source_id, account_key],
+            )
+            .unwrap();
+
+        let mut entries = BTreeSet::new();
+        add_entry(
+            &mut entries,
+            "gmail_scope_sources",
+            serde_json::json!([scope_id, provider_source_id]),
+        )
+        .unwrap();
+        expand_parent_rows(&connection, &mut entries).unwrap();
+        assert!(entries
+            .iter()
+            .any(|entry| { entry.entity_kind == DeletionEntityKind::GmailScopeAvailabilityHeads }));
+        assert!(entries.iter().any(|entry| {
+            entry.entity_kind == DeletionEntityKind::GmailScopeAvailabilityObservations
+        }));
+        for table in [
+            "gmail_scope_availability_heads",
+            "gmail_scope_availability_observations",
+        ] {
+            let error = connection
+                .execute(&format!("DELETE FROM {table}"), [])
+                .unwrap_err();
+            assert!(error
+                .to_string()
+                .contains("hard deletion authority required"));
+        }
     }
 
     #[test]

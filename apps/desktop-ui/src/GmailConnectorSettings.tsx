@@ -8,7 +8,8 @@ import {
 
 import { formatError } from "./foundation-model";
 import type {
-  GetGmailConnectorV1Response,
+  GetGmailConnectorV2Response,
+  GmailDiscoveryScopeV2,
   GmailConnectorLimitsV1,
   GmailSyncSummaryV1,
 } from "./generated/contracts";
@@ -27,7 +28,10 @@ const defaultLimits: GmailConnectorLimitsV1 = {
 type ConnectorState =
   | { kind: "loading" }
   | { kind: "error"; message: string }
-  | { kind: "ready"; value: GetGmailConnectorV1Response };
+  | { kind: "ready"; value: GetGmailConnectorV2Response };
+
+const defaultReceiptQuery =
+  'newer_than:3m -in:spam -in:trash {"order confirmation" "order confirmed" "thanks for your order" "we received your order" "purchase confirmation" "your order has shipped"}';
 
 export function GmailConnectorSettings({
   localOnly,
@@ -40,11 +44,29 @@ export function GmailConnectorSettings({
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [summary, setSummary] = useState<GmailSyncSummaryV1 | null>(null);
+  const [discoveryMode, setDiscoveryMode] = useState<"search" | "label">(
+    "search",
+  );
+  const [query, setQuery] = useState(defaultReceiptQuery);
+  const [labelName, setLabelName] = useState("Wardrobe Receipts");
   const resultRef = useRef<HTMLParagraphElement>(null);
 
   const load = useCallback(async () => {
     try {
-      setState({ kind: "ready", value: await bridge.getState() });
+      const value = await bridge.getState();
+      const scope = value.settings?.discovery_scope;
+      setDiscoveryMode(scope?.kind ?? "search");
+      if (scope?.kind === "search") {
+        setQuery(scope.query);
+      } else if (!scope) {
+        setQuery(defaultReceiptQuery);
+      }
+      if (scope?.kind === "label") {
+        setLabelName(scope.label_name);
+      } else if (!scope) {
+        setLabelName("Wardrobe Receipts");
+      }
+      setState({ kind: "ready", value });
     } catch (error) {
       setState({ kind: "error", message: formatError(error) });
     }
@@ -136,9 +158,19 @@ export function GmailConnectorSettings({
     setBusy("save");
     setMessage(null);
     try {
+      const discoveryScope: GmailDiscoveryScopeV2 =
+        discoveryMode === "search"
+          ? {
+              kind: "search",
+              query: String(values.get("query") ?? ""),
+            }
+          : {
+              kind: "label",
+              label_name: String(values.get("labelName") ?? "").trim(),
+            };
       await bridge.saveSettings(
         String(values.get("clientId") ?? "").trim(),
-        String(values.get("labelName") ?? "").trim(),
+        discoveryScope,
         limits,
       );
       setMessage("Gmail settings saved.");
@@ -207,69 +239,184 @@ export function GmailConnectorSettings({
             defaultValue={connector.settings?.oauth_client_id ?? ""}
           />
         </label>
-        <label>
-          Gmail label
-          <input
-            name="labelName"
-            type="text"
-            required
-            maxLength={80}
-            autoComplete="off"
-            disabled={!editable || busy !== null || localOnly}
-            defaultValue={connector.settings?.label_name ?? "Wardrobe Receipts"}
-          />
-        </label>
-        <label>
-          Page size
-          <input
-            name="pageSize"
-            type="number"
-            min={1}
-            max={100}
-            required
-            disabled={!editable || busy !== null || localOnly}
-            defaultValue={
-              connector.settings?.limits.page_size ?? defaultLimits.page_size
-            }
-          />
-        </label>
-        <label>
-          Max pages
-          <input
-            name="maxPages"
-            type="number"
-            min={1}
-            max={10}
-            required
-            disabled={!editable || busy !== null || localOnly}
-            defaultValue={
-              connector.settings?.limits.max_pages ?? defaultLimits.max_pages
-            }
-          />
-        </label>
-        <label>
-          Max messages
-          <input
-            name="maxMessages"
-            type="number"
-            min={1}
-            max={200}
-            required
-            disabled={!editable || busy !== null || localOnly}
-            defaultValue={
-              connector.settings?.limits.max_unique_messages ??
-              defaultLimits.max_unique_messages
-            }
-          />
-        </label>
-        <input
-          name="maxBytes"
-          type="hidden"
-          value={
-            connector.settings?.limits.max_total_raw_bytes ??
-            defaultLimits.max_total_raw_bytes
+        <fieldset
+          className="gmail-discovery-mode"
+          aria-describedby={
+            discoveryMode === "search"
+              ? "gmail-search-disclosure"
+              : "gmail-label-disclosure"
           }
-        />
+        >
+          <legend>Receipt discovery</legend>
+          <label>
+            <input
+              name="discoveryMode"
+              type="radio"
+              value="search"
+              checked={discoveryMode === "search"}
+              onChange={() => setDiscoveryMode("search")}
+              disabled={!editable || busy !== null || localOnly}
+            />
+            Gmail search
+          </label>
+          <label>
+            <input
+              name="discoveryMode"
+              type="radio"
+              value="label"
+              checked={discoveryMode === "label"}
+              onChange={() => setDiscoveryMode("label")}
+              disabled={!editable || busy !== null || localOnly}
+            />
+            Existing label
+          </label>
+        </fieldset>
+        {discoveryMode === "search" ? (
+          <label className="gmail-query">
+            Gmail query
+            <textarea
+              name="query"
+              required
+              maxLength={2048}
+              autoComplete="off"
+              disabled={!editable || busy !== null || localOnly}
+              aria-label="Gmail query"
+              aria-describedby="gmail-query-hint gmail-search-disclosure"
+              value={query}
+              onChange={(event) => setQuery(event.currentTarget.value)}
+            />
+            <span id="gmail-query-hint" className="gmail-field-hint">
+              Run exactly as entered; whitespace is preserved.
+            </span>
+          </label>
+        ) : (
+          <label className="gmail-query">
+            Gmail label
+            <input
+              name="labelName"
+              type="text"
+              required
+              maxLength={80}
+              autoComplete="off"
+              disabled={!editable || busy !== null || localOnly}
+              aria-label="Gmail label"
+              aria-describedby="gmail-label-disclosure"
+              value={labelName}
+              onChange={(event) => setLabelName(event.currentTarget.value)}
+            />
+          </label>
+        )}
+        {discoveryMode === "search" ? (
+          <p
+            id="gmail-search-disclosure"
+            className="muted gmail-discovery-note"
+          >
+            Search mode is read-only. Each sync runs the exact query shown
+            above and completely reconciles every result within the four
+            configured bounds below. Previously imported messages stay in
+            Wardrobe if they no longer match. Wardrobe never changes Gmail
+            messages, labels, or mailbox content.
+          </p>
+        ) : (
+          <p
+            id="gmail-label-disclosure"
+            className="muted gmail-discovery-note"
+          >
+            Label mode includes settings migrated from earlier Wardrobe
+            versions. It keeps label-history synchronization with read-only
+            Gmail access. Wardrobe never creates or changes Gmail labels,
+            messages, or mailbox content.
+          </p>
+        )}
+        <fieldset className="gmail-sync-limits">
+          <legend>Sync bounds</legend>
+          <div className="gmail-limit-grid">
+            <label>
+              Page size
+              <input
+                name="pageSize"
+                type="number"
+                min={1}
+                max={100}
+                step={1}
+                required
+                disabled={!editable || busy !== null || localOnly}
+                aria-label="Page size"
+                aria-describedby="gmail-page-size-hint"
+                defaultValue={
+                  connector.settings?.limits.page_size ??
+                  defaultLimits.page_size
+                }
+              />
+              <span id="gmail-page-size-hint" className="gmail-field-hint">
+                1-100 messages per page
+              </span>
+            </label>
+            <label>
+              Max pages
+              <input
+                name="maxPages"
+                type="number"
+                min={1}
+                max={10}
+                step={1}
+                required
+                disabled={!editable || busy !== null || localOnly}
+                aria-label="Max pages"
+                aria-describedby="gmail-max-pages-hint"
+                defaultValue={
+                  connector.settings?.limits.max_pages ??
+                  defaultLimits.max_pages
+                }
+              />
+              <span id="gmail-max-pages-hint" className="gmail-field-hint">
+                1-10 pages
+              </span>
+            </label>
+            <label>
+              Max messages
+              <input
+                name="maxMessages"
+                type="number"
+                min={1}
+                max={200}
+                step={1}
+                required
+                disabled={!editable || busy !== null || localOnly}
+                aria-label="Max messages"
+                aria-describedby="gmail-max-messages-hint"
+                defaultValue={
+                  connector.settings?.limits.max_unique_messages ??
+                  defaultLimits.max_unique_messages
+                }
+              />
+              <span id="gmail-max-messages-hint" className="gmail-field-hint">
+                1-200 unique messages
+              </span>
+            </label>
+            <label>
+              Max total raw bytes
+              <input
+                name="maxBytes"
+                type="number"
+                min={1}
+                max={100 * 1024 * 1024}
+                step={1}
+                required
+                disabled={!editable || busy !== null || localOnly}
+                aria-label="Max total raw bytes"
+                aria-describedby="gmail-max-bytes-hint"
+                defaultValue={
+                  connector.settings?.limits.max_total_raw_bytes ??
+                  defaultLimits.max_total_raw_bytes
+                }
+              />
+              <span id="gmail-max-bytes-hint" className="gmail-field-hint">
+                1-104857600 bytes total
+              </span>
+            </label>
+          </div>
+        </fieldset>
         {editable && (
           <button
             className="button form-submit"
@@ -306,7 +453,7 @@ export function GmailConnectorSettings({
 }
 
 function statusLabel(
-  status: GetGmailConnectorV1Response["status"],
+  status: GetGmailConnectorV2Response["status"],
 ): string {
   switch (status) {
     case "not_configured":

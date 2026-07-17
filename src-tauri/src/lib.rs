@@ -43,40 +43,48 @@ use wardrobe_core::{
     DisconnectGmailV1Response, ErrorCodeV1, ExecuteDeletionV1Request, ExecuteDeletionV1Response,
     ExportDiagnosticsV1Request, ExportDiagnosticsV1Response, GetFoundationSnapshotV1Request,
     GetFoundationSnapshotV1Response, GetGmailConnectorV1Request, GetGmailConnectorV1Response,
-    GetOutfitCollageV1Request, GetOutfitCollageV1Response, GetOutfitTryOnV1Request,
-    GetOutfitTryOnV1Response, GetPhotoKitConnectorV1Request, GetPhotoKitConnectorV1Response,
-    GmailConnectorPort, GmailConnectorPortError, GmailConnectorPortErrorKind,
-    ImportLocalSourcesV1Request, ImportLocalSourcesV1Response, ListBackupsV1Request,
-    ListBackupsV1Response, ListCatalogV1Request, ListCatalogV1Response,
-    ListDeletionPlanItemsV1Request, ListDeletionPlanItemsV1Response,
-    ListImportedPhotoRootsV1Request, ListImportedPhotoRootsV1Response, ListInboxV1Request,
-    ListInboxV1Response, ListOutfitsV1Request, ListOutfitsV1Response,
-    ListPhotoObservationsV1Request, ListPhotoObservationsV1Response,
-    ListPhotoOwnerReviewsV1Request, ListPhotoOwnerReviewsV1Response,
-    ListReceiptImageCandidatesV1Request, ListReceiptImageCandidatesV1Response,
-    ListReceiptsV1Request, ListReceiptsV1Response, ListReconciliationCasesV2Request,
-    ListReconciliationCasesV2Response, ListTryOnPortraitCandidatesV1Request,
-    ListTryOnPortraitCandidatesV1Response, MergeItemsV1Request, MergeItemsV1Response,
-    OpenReconciliationCaseV1Request, OpenReconciliationCaseV1Response,
-    OpenReconciliationCaseV2Request, OpenReconciliationCaseV2Response, OperationId,
-    PhotoKitConnectorPort, PhotoKitConnectorPortError, PhotoKitConnectorPortErrorKind,
-    PhotoKitReconcileTriggerV1, PrepareRestoreV1Request, PrepareRestoreV1Response,
-    PreviewDeletionV1Request, PreviewDeletionV1Response, PreviewOutfitRecommendationV1Request,
-    PreviewOutfitRecommendationV1Response, PreviewTryOnV1Request, PreviewTryOnV1Response,
+    GetGmailConnectorV2Request, GetGmailConnectorV2Response, GetOutfitCollageV1Request,
+    GetOutfitCollageV1Response, GetOutfitTryOnV1Request, GetOutfitTryOnV1Response,
+    GetPhotoKitConnectorV1Request, GetPhotoKitConnectorV1Response, GmailConnectorPort,
+    GmailConnectorPortError, GmailConnectorPortErrorKind, ImportLocalSourcesV1Request,
+    ImportLocalSourcesV1Response, ListBackupsV1Request, ListBackupsV1Response,
+    ListCatalogV1Request, ListCatalogV1Response, ListDeletionPlanItemsV1Request,
+    ListDeletionPlanItemsV1Response, ListImportedPhotoRootsV1Request,
+    ListImportedPhotoRootsV1Response, ListInboxV1Request, ListInboxV1Response,
+    ListOutfitsV1Request, ListOutfitsV1Response, ListPhotoObservationsV1Request,
+    ListPhotoObservationsV1Response, ListPhotoOwnerReviewsV1Request,
+    ListPhotoOwnerReviewsV1Response, ListReceiptImageCandidatesV1Request,
+    ListReceiptImageCandidatesV1Response, ListReceiptIntelligenceV1Request,
+    ListReceiptIntelligenceV1Response, ListReceiptPurchaseUnitsV1Request,
+    ListReceiptPurchaseUnitsV1Response, ListReceiptsV1Request, ListReceiptsV1Response,
+    ListReconciliationCasesV2Request, ListReconciliationCasesV2Response,
+    ListTryOnPortraitCandidatesV1Request, ListTryOnPortraitCandidatesV1Response,
+    MergeItemsV1Request, MergeItemsV1Response, OpenReconciliationCaseV1Request,
+    OpenReconciliationCaseV1Response, OpenReconciliationCaseV2Request,
+    OpenReconciliationCaseV2Response, OperationId, PhotoKitConnectorPort,
+    PhotoKitConnectorPortError, PhotoKitConnectorPortErrorKind, PhotoKitReconcileTriggerV1,
+    PrepareRestoreV1Request, PrepareRestoreV1Response, PreviewDeletionV1Request,
+    PreviewDeletionV1Response, PreviewOutfitRecommendationV1Request,
+    PreviewOutfitRecommendationV1Response, PreviewReceiptIntelligenceV1Request,
+    PreviewReceiptIntelligenceV1Response, PreviewTryOnV1Request, PreviewTryOnV1Response,
+    PromoteReceiptPurchaseUnitV1Request, PromoteReceiptPurchaseUnitV1Response,
     PromptPhotoObservationV1Request, PromptPhotoObservationV1Response, ReadPhotoArtifactV1Request,
     ReadPhotoArtifactV1Response, ReadPhotoOwnerPreviewV1Request, ReadPhotoOwnerPreviewV1Response,
     ReceiptImageDownloadV1, ReceiptImageDownloader, ReceiptImageFailureCodeV1,
+    ReceiptIntelligenceAvailabilityReasonV1, ReceiptIntelligenceAvailabilityV1,
     RefreshImportRootsV1Request, RefreshImportRootsV1Response, RequestId,
     RequestOutfitRecommendationV1Request, RequestOutfitRecommendationV1Response,
+    RequestReceiptIntelligenceV1Request, RequestReceiptIntelligenceV1Response,
     RetryPhotoPersonDetectionV1Request, RetryPhotoPersonDetectionV1Response,
     ReviewPhotoObservationV1Request, ReviewPhotoObservationV1Response, ReviewReceiptV1Request,
     ReviewReceiptV1Response, RunStorageCheckV1Request, RunStorageCheckV1Response, SafeFieldV1,
     SaveCredentialV1Request, SaveCredentialV1Response, SaveGmailSettingsV1Request,
-    SaveGmailSettingsV1Response, SaveItemV1Request, SaveItemV1Response, SetLocalOnlyV1Request,
-    SetLocalOnlyV1Response, SplitItemV1Request, SplitItemV1Response, SubmitTryOnV1Request,
-    SubmitTryOnV1Response, SyncGmailV1Request, SyncGmailV1Response, SyncPhotoKitV1Request,
-    SyncPhotoKitV1Response, UnavailableGarmentSegmentationProviderV1, UndoDecisionV1Request,
-    UndoDecisionV1Response, UserActionKeyV1, Validate, SCHEMA_VERSION_V1,
+    SaveGmailSettingsV1Response, SaveGmailSettingsV2Request, SaveGmailSettingsV2Response,
+    SaveItemV1Request, SaveItemV1Response, SetLocalOnlyV1Request, SetLocalOnlyV1Response,
+    SplitItemV1Request, SplitItemV1Response, SubmitTryOnV1Request, SubmitTryOnV1Response,
+    SyncGmailV1Request, SyncGmailV1Response, SyncPhotoKitV1Request, SyncPhotoKitV1Response,
+    UnavailableGarmentSegmentationProviderV1, UndoDecisionV1Request, UndoDecisionV1Response,
+    UserActionKeyV1, Validate, SCHEMA_VERSION_V1,
 };
 use wardrobe_platform::{
     BackupReason as PlatformBackupReason, BackupRecord as PlatformBackupRecord, BackupRepository,
@@ -84,8 +92,8 @@ use wardrobe_platform::{
     LocalDeterministicReceiptProviderV1, LocalOnlyModeStore, LocalOnlyStoreError, MacOsKeychain,
     MacOsVisionPersonDetectionProviderV1, MaintenanceCoordinator, PlatformError, PrivateAppPaths,
     ProductionGmailConnector, ProductionOutfitRecommender, ProductionPhotoKitConnector,
-    ProductionReceiptImageDownloader, ProductionTryOnRenderer, RestoreRepository, StoreLock,
-    VerifyBlobWorker,
+    ProductionReceiptImageDownloader, ProductionTryOnRenderer, ReceiptIntelligenceCoordinator,
+    RestoreRepository, StoreLock, VerifyBlobWorker,
 };
 
 type ProductionService = ApplicationService<
@@ -112,6 +120,8 @@ struct DesktopState {
     person_detector: MacOsVisionPersonDetectionProviderV1,
     outfit_recommender: AuthorizedOutfitRecommender,
     remote_recommendations: RemoteRecommendationReleaseGate,
+    receipt_intelligence: Option<Arc<ReceiptIntelligenceCoordinator>>,
+    receipt_intelligence_release: ReceiptIntelligenceReleaseGate,
     try_on_scheduler: TryOnScheduler,
     try_on_release: TryOnReleaseGate,
     worker: VerifyBlobWorker,
@@ -167,6 +177,20 @@ where
         request: &SaveGmailSettingsV1Request,
     ) -> Result<SaveGmailSettingsV1Response, GmailConnectorPortError> {
         self.inner.save_gmail_settings(request)
+    }
+
+    fn get_gmail_connector_v2(
+        &self,
+        request: &GetGmailConnectorV2Request,
+    ) -> Result<GetGmailConnectorV2Response, GmailConnectorPortError> {
+        self.inner.get_gmail_connector_v2(request)
+    }
+
+    fn save_gmail_settings_v2(
+        &self,
+        request: &SaveGmailSettingsV2Request,
+    ) -> Result<SaveGmailSettingsV2Response, GmailConnectorPortError> {
+        self.inner.save_gmail_settings_v2(request)
     }
 
     fn connect_gmail(
@@ -452,6 +476,11 @@ struct TryOnReleaseGate {
     enabled: bool,
 }
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct ReceiptIntelligenceReleaseGate {
+    enabled: bool,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum TryOnSchedulerTrigger {
     Startup,
@@ -593,6 +622,47 @@ impl RemoteRecommendationReleaseGate {
             ));
         }
         operation()
+    }
+}
+
+impl ReceiptIntelligenceReleaseGate {
+    fn for_bundled_manifest() -> Self {
+        Self {
+            enabled: release_manifest::receipt_intelligence_service_available(),
+        }
+    }
+
+    fn require(self) -> CommandResult<()> {
+        if self.enabled {
+            Ok(())
+        } else {
+            Err(command_error(
+                ErrorCodeV1::ProviderUnavailable,
+                false,
+                UserActionKeyV1::None,
+                None,
+            ))
+        }
+    }
+
+    fn override_availability(
+        self,
+        local_only: bool,
+        repository: ReceiptIntelligenceAvailabilityV1,
+    ) -> ReceiptIntelligenceAvailabilityV1 {
+        let reason = if local_only {
+            Some(ReceiptIntelligenceAvailabilityReasonV1::LocalOnly)
+        } else if !self.enabled {
+            Some(ReceiptIntelligenceAvailabilityReasonV1::ReleaseEvidenceUnavailable)
+        } else {
+            return repository;
+        };
+        ReceiptIntelligenceAvailabilityV1 {
+            available: false,
+            reason,
+            offline_receipt_analysis_available: true,
+            existing_wardrobe_access_available: true,
+        }
     }
 }
 
@@ -770,6 +840,10 @@ fn classify_command(name: &str) -> Option<CommandNetworkClass> {
         | "list_receipts_v1"
         | "analyze_receipt_v1"
         | "review_receipt_v1"
+        | "list_receipt_purchase_units_v1"
+        | "promote_receipt_purchase_unit_v1"
+        | "preview_receipt_intelligence_v1"
+        | "list_receipt_intelligence_v1"
         | "list_receipt_image_candidates_v1"
         | "list_imported_photo_roots_v1"
         | "create_photo_scope_v1"
@@ -791,13 +865,18 @@ fn classify_command(name: &str) -> Option<CommandNetworkClass> {
         | "decide_reconciliation_case_v2"
         | "list_reconciliation_cases_v2"
         | "get_gmail_connector_v1"
+        | "get_gmail_connector_v2"
         | "save_gmail_settings_v1"
+        | "save_gmail_settings_v2"
         | "get_photokit_connector_v1"
         | "export_diagnostics_v1" => Local,
         "delete_credential_v1" | "disconnect_gmail_v1" | "disable_photokit_v1" => LocalCleanup,
         "connect_gmail_v1" => Outbound(OutboundCapability::GmailAuthorize),
         "sync_gmail_v1" => Outbound(OutboundCapability::GmailSync),
         "approve_and_fetch_receipt_image_v1" => Outbound(OutboundCapability::ReceiptImageFetch),
+        "request_receipt_intelligence_v1" => {
+            Outbound(OutboundCapability::OpenAiReceiptIntelligence)
+        }
         "begin_photokit_setup_v1" | "configure_photokit_scope_v1" | "sync_photokit_v1" => {
             Outbound(OutboundCapability::PhotoKitMaterialize)
         }
@@ -886,6 +965,7 @@ fn initialize_state_with_recommendation_gate(
         app_log_directory,
         remote_recommendations,
         TryOnReleaseGate::for_build(),
+        ReceiptIntelligenceReleaseGate::for_bundled_manifest(),
     )
 }
 
@@ -894,6 +974,7 @@ fn initialize_state_with_gates(
     app_log_directory: impl AsRef<Path>,
     remote_recommendations: RemoteRecommendationReleaseGate,
     try_on_release: TryOnReleaseGate,
+    receipt_intelligence_release: ReceiptIntelligenceReleaseGate,
 ) -> Result<DesktopState, StartupError> {
     let private_paths = PrivateAppPaths::create(app_data_directory)
         .map_err(|_| StartupError("private_data_unavailable"))?;
@@ -931,6 +1012,12 @@ fn initialize_state_with_gates(
     database
         .recover_try_on_jobs(now_ms)
         .map_err(|_| StartupError("try_on_recovery_failed"))?;
+    database
+        .recover_receipt_intelligence_attempts(now_ms)
+        .map_err(|_| StartupError("receipt_intelligence_recovery_failed"))?;
+    let receipt_intelligence = ReceiptIntelligenceCoordinator::production(database.clone())
+        .ok()
+        .map(Arc::new);
     let outfit_recommender = AuthorizedOutfitRecommender {
         inner: ProductionOutfitRecommender::production(database.clone())
             .map_err(|_| StartupError("recommendation_provider_unavailable"))?,
@@ -994,6 +1081,8 @@ fn initialize_state_with_gates(
         person_detector: MacOsVisionPersonDetectionProviderV1,
         outfit_recommender,
         remote_recommendations,
+        receipt_intelligence,
+        receipt_intelligence_release,
         try_on_scheduler,
         try_on_release,
         worker,
@@ -1838,6 +1927,177 @@ catalog_command!(
     review_receipt_v1
 );
 catalog_command!(
+    list_receipt_purchase_units_v1,
+    handle_list_receipt_purchase_units,
+    ListReceiptPurchaseUnitsV1Request,
+    ListReceiptPurchaseUnitsV1Response,
+    list_receipt_purchase_units_v1
+);
+catalog_command!(
+    promote_receipt_purchase_unit_v1,
+    handle_promote_receipt_purchase_unit,
+    PromoteReceiptPurchaseUnitV1Request,
+    PromoteReceiptPurchaseUnitV1Response,
+    promote_receipt_purchase_unit_v1
+);
+
+#[tauri::command]
+fn preview_receipt_intelligence_v1(
+    state: State<'_, DesktopState>,
+    request: SafeRequest<PreviewReceiptIntelligenceV1Request>,
+) -> CommandResult<PreviewReceiptIntelligenceV1Response> {
+    handle_preview_receipt_intelligence(&state, request.into_result()?)
+}
+
+fn handle_preview_receipt_intelligence(
+    state: &DesktopState,
+    request: PreviewReceiptIntelligenceV1Request,
+) -> CommandResult<PreviewReceiptIntelligenceV1Response> {
+    state.receipt_intelligence_release.require()?;
+    let _publication_permit = state
+        .maintenance
+        .acquire_shared()
+        .map_err(map_worker_error)?;
+    let coordinator = state.receipt_intelligence.as_ref().ok_or_else(|| {
+        command_error(
+            ErrorCodeV1::ProviderUnavailable,
+            false,
+            UserActionKeyV1::None,
+            None,
+        )
+    })?;
+    let request_id = request.request_id;
+    let result = coordinator
+        .preview(request)
+        .map_err(map_recommendation_error);
+    emit_command_diagnostic(
+        state,
+        request_id,
+        DiagnosticComponentV1::Application,
+        DiagnosticEventCodeV1::CommandCompleted,
+        &result,
+    );
+    result
+}
+
+#[tauri::command]
+async fn request_receipt_intelligence_v1(
+    state: State<'_, DesktopState>,
+    request: SafeRequest<RequestReceiptIntelligenceV1Request>,
+) -> CommandResult<RequestReceiptIntelligenceV1Response> {
+    handle_request_receipt_intelligence(&state, request.into_result()?).await
+}
+
+async fn handle_request_receipt_intelligence(
+    state: &DesktopState,
+    request: RequestReceiptIntelligenceV1Request,
+) -> CommandResult<RequestReceiptIntelligenceV1Response> {
+    let _publication_permit = state
+        .maintenance
+        .acquire_shared()
+        .map_err(map_worker_error)?;
+    let coordinator = state.receipt_intelligence.as_ref().ok_or_else(|| {
+        command_error(
+            ErrorCodeV1::ProviderUnavailable,
+            false,
+            UserActionKeyV1::None,
+            None,
+        )
+    })?;
+    let request_id = request.request_id;
+    let replay = coordinator
+        .terminal_replay(&request)
+        .map_err(map_recommendation_error);
+    match replay {
+        Ok(Some(response)) => {
+            let result = Ok(response);
+            emit_command_diagnostic(
+                state,
+                request_id,
+                DiagnosticComponentV1::Application,
+                DiagnosticEventCodeV1::CommandCompleted,
+                &result,
+            );
+            return result;
+        }
+        Ok(None) => {}
+        Err(error) => {
+            let result = Err(error);
+            emit_command_diagnostic(
+                state,
+                request_id,
+                DiagnosticComponentV1::Application,
+                DiagnosticEventCodeV1::CommandCompleted,
+                &result,
+            );
+            return result;
+        }
+    }
+    state.receipt_intelligence_release.require()?;
+    let _lease = acquire_command_authority(state, "request_receipt_intelligence_v1")?;
+    let result = coordinator
+        .request(request)
+        .await
+        .map_err(map_recommendation_error);
+    emit_command_diagnostic(
+        state,
+        request_id,
+        DiagnosticComponentV1::Application,
+        DiagnosticEventCodeV1::CommandCompleted,
+        &result,
+    );
+    result
+}
+
+#[tauri::command]
+fn list_receipt_intelligence_v1(
+    state: State<'_, DesktopState>,
+    request: SafeRequest<ListReceiptIntelligenceV1Request>,
+) -> CommandResult<ListReceiptIntelligenceV1Response> {
+    handle_list_receipt_intelligence(&state, request.into_result()?)
+}
+
+fn handle_list_receipt_intelligence(
+    state: &DesktopState,
+    request: ListReceiptIntelligenceV1Request,
+) -> CommandResult<ListReceiptIntelligenceV1Response> {
+    let _publication_permit = state
+        .maintenance
+        .acquire_shared()
+        .map_err(map_worker_error)?;
+    let coordinator = state.receipt_intelligence.as_ref().ok_or_else(|| {
+        command_error(
+            ErrorCodeV1::ProviderUnavailable,
+            false,
+            UserActionKeyV1::None,
+            None,
+        )
+    })?;
+    let request_id = request.request_id;
+    let result = coordinator
+        .list(request)
+        .and_then(|mut response| {
+            response.availability = state.receipt_intelligence_release.override_availability(
+                state.outbound_authority.snapshot().local_only,
+                response.availability,
+            );
+            response
+                .validate()
+                .map_err(|_| PlatformError::Corrupt("receipt_intelligence_list_response"))?;
+            Ok(response)
+        })
+        .map_err(map_recommendation_error);
+    emit_command_diagnostic(
+        state,
+        request_id,
+        DiagnosticComponentV1::Database,
+        DiagnosticEventCodeV1::CommandCompleted,
+        &result,
+    );
+    result
+}
+
+catalog_command!(
     list_imported_photo_roots_v1,
     handle_list_imported_photo_roots,
     ListImportedPhotoRootsV1Request,
@@ -1997,6 +2257,20 @@ catalog_command!(
     SaveGmailSettingsV1Request,
     SaveGmailSettingsV1Response,
     save_gmail_settings_v1
+);
+catalog_command!(
+    get_gmail_connector_v2,
+    handle_get_gmail_connector_v2,
+    GetGmailConnectorV2Request,
+    GetGmailConnectorV2Response,
+    get_gmail_connector_v2
+);
+catalog_command!(
+    save_gmail_settings_v2,
+    handle_save_gmail_settings_v2,
+    SaveGmailSettingsV2Request,
+    SaveGmailSettingsV2Response,
+    save_gmail_settings_v2
 );
 #[tauri::command]
 fn connect_gmail_v1(
@@ -2523,6 +2797,11 @@ pub fn run() {
             list_receipts_v1,
             analyze_receipt_v1,
             review_receipt_v1,
+            list_receipt_purchase_units_v1,
+            promote_receipt_purchase_unit_v1,
+            preview_receipt_intelligence_v1,
+            request_receipt_intelligence_v1,
+            list_receipt_intelligence_v1,
             list_receipt_image_candidates_v1,
             approve_and_fetch_receipt_image_v1,
             list_imported_photo_roots_v1,
@@ -2546,6 +2825,8 @@ pub fn run() {
             list_reconciliation_cases_v2,
             get_gmail_connector_v1,
             save_gmail_settings_v1,
+            get_gmail_connector_v2,
+            save_gmail_settings_v2,
             connect_gmail_v1,
             sync_gmail_v1,
             disconnect_gmail_v1,
@@ -2571,7 +2852,9 @@ mod tests {
         ItemAttributesV1, ItemCategoryV1, LocalOnlyAuthorityHealthV1, OpenAiRetentionDeclarationV1,
         OpenAiRetentionModeV1, OutfitRecommendationConstraintsV1, OutfitRecommendationEnvelopeV1,
         ReceiptImageAttemptOutcomeV1, ReceiptImageCandidateEligibilityV1,
-        ReceiptImageFailureCodeV1, ReceiptOrderEvidenceV1, ReceiptReviewActionV1, ReceiptStateV1,
+        ReceiptImageFailureCodeV1, ReceiptOrderEvidenceV1, ReceiptPromotionCategoryAuthorityV1,
+        ReceiptPromotionConfirmationV1, ReceiptPurchaseUnitStatusFilterV1,
+        ReceiptPurchaseUnitStatusV1, ReceiptReviewActionV1, ReceiptStateV1,
         ReconciliationCandidateTargetV1, ReconciliationOutcomeV1, ReplayStatusV1, Sha256Digest,
         Validate,
     };
@@ -3305,6 +3588,7 @@ mod tests {
             temporary.path().join("logs"),
             RemoteRecommendationReleaseGate { enabled: true },
             TryOnReleaseGate { enabled: true },
+            ReceiptIntelligenceReleaseGate { enabled: false },
         )
         .unwrap();
         assert!(state.outbound_authority.snapshot().local_only);
@@ -4499,6 +4783,155 @@ Content-Type: text/html; charset=utf-8\r\n\r\n\
     }
 
     #[test]
+    fn receipt_purchase_unit_commands_use_real_local_state_across_restart() {
+        for command in [
+            "list_receipt_purchase_units_v1",
+            "promote_receipt_purchase_unit_v1",
+        ] {
+            assert_eq!(classify_command(command), Some(CommandNetworkClass::Local));
+        }
+
+        let temporary = tempfile::tempdir().unwrap();
+        let data = temporary.path().join("data");
+        let logs = temporary.path().join("logs");
+        let imports = temporary.path().join("imports");
+        fs::create_dir(&imports).unwrap();
+        let receipt_path = imports.join("receipt.eml");
+        fs::write(&receipt_path, synthetic_receipt_eml()).unwrap();
+
+        let state = initialize_state(&data, &logs).unwrap();
+        let imported = handle_import_local_sources(
+            &state,
+            ImportLocalSourcesV1Request {
+                schema_version: SCHEMA_VERSION_V1,
+                request_id: request_id(),
+                paths: vec![receipt_path.to_string_lossy().into_owned()],
+            },
+        )
+        .unwrap();
+        let source_id = imported.summaries[0].source_id.unwrap();
+        let analyzed = handle_analyze_receipt(
+            &state,
+            AnalyzeReceiptV1Request {
+                schema_version: SCHEMA_VERSION_V1,
+                request_id: request_id(),
+                source_id,
+            },
+        )
+        .unwrap();
+        let reviewed = handle_review_receipt(
+            &state,
+            ReviewReceiptV1Request {
+                schema_version: SCHEMA_VERSION_V1,
+                request_id: request_id(),
+                order_evidence_id: analyzed.order.order_evidence_id,
+                action: ReceiptReviewActionV1::Correct,
+                corrected_order: Some(corrected_order(&analyzed.order)),
+                expected_receipt_revision: analyzed.receipt_revision,
+            },
+        )
+        .unwrap();
+        assert_eq!(reviewed.order.state(), ReceiptStateV1::Corrected);
+
+        let listed = handle_list_receipt_purchase_units(
+            &state,
+            ListReceiptPurchaseUnitsV1Request {
+                schema_version: SCHEMA_VERSION_V1,
+                request_id: request_id(),
+                source_id: Some(source_id),
+                status: Some(ReceiptPurchaseUnitStatusFilterV1::Available),
+                cursor: None,
+                limit: 20,
+            },
+        )
+        .unwrap();
+        assert_eq!(listed.total_count, 2);
+        assert_eq!(listed.units.len(), 2);
+        assert!(listed
+            .units
+            .iter()
+            .all(|unit| unit.authoritative_quantity == 2
+                && unit.values.quantity == 2
+                && unit.authority.review_action == ReceiptReviewActionV1::Correct
+                && matches!(unit.status, ReceiptPurchaseUnitStatusV1::Available)));
+        assert_eq!(
+            listed
+                .units
+                .iter()
+                .map(|unit| unit.unit_ordinal)
+                .collect::<Vec<_>>(),
+            vec![0, 1]
+        );
+
+        let unit = listed.units[0].clone();
+        let promote_request = PromoteReceiptPurchaseUnitV1Request {
+            schema_version: SCHEMA_VERSION_V1,
+            request_id: request_id(),
+            purchase_unit_id: unit.purchase_unit_id,
+            expected_purchase_unit_revision: unit.purchase_unit_revision,
+            expected_unit_snapshot_sha256: unit.unit_snapshot_sha256.clone(),
+            expected_authority_id: unit.authority.authority_id,
+            expected_authority_revision: unit.authority.authority_revision,
+            expected_receipt_revision: unit.authority.receipt_revision,
+            expected_review_decision_id: unit.authority.review_decision_id,
+            expected_catalog_revision: unit.catalog_revision,
+            confirmation: ReceiptPromotionConfirmationV1::CreateOneWardrobeItem,
+            category_authority: ReceiptPromotionCategoryAuthorityV1::UserSelected,
+            attributes: item_attributes("Blue Shirt"),
+        };
+        let promoted =
+            handle_promote_receipt_purchase_unit(&state, promote_request.clone()).unwrap();
+        assert_eq!(promoted.replay_status, ReplayStatusV1::Created);
+        assert_eq!(promoted.item.attributes, promote_request.attributes);
+        assert_eq!(state.outbound_authority.active_leases_for_test(), 0);
+
+        drop(state);
+        let restarted = initialize_state(&data, &logs).unwrap();
+        let catalog = handle_list_catalog(
+            &restarted,
+            ListCatalogV1Request {
+                schema_version: SCHEMA_VERSION_V1,
+                request_id: request_id(),
+                cursor: None,
+                limit: 20,
+            },
+        )
+        .unwrap();
+        assert_eq!(catalog.total_count, 1);
+        assert_eq!(catalog.items, vec![promoted.item.clone()]);
+
+        let promoted_units = handle_list_receipt_purchase_units(
+            &restarted,
+            ListReceiptPurchaseUnitsV1Request {
+                schema_version: SCHEMA_VERSION_V1,
+                request_id: request_id(),
+                source_id: Some(source_id),
+                status: Some(ReceiptPurchaseUnitStatusFilterV1::Promoted),
+                cursor: None,
+                limit: 20,
+            },
+        )
+        .unwrap();
+        assert_eq!(promoted_units.total_count, 1);
+        assert_eq!(promoted_units.units.len(), 1);
+        assert_eq!(
+            promoted_units.units[0].purchase_unit_id,
+            promoted.unit.purchase_unit_id
+        );
+        assert!(matches!(
+            promoted_units.units[0].status,
+            ReceiptPurchaseUnitStatusV1::Promoted { item_id, .. }
+                if item_id == promoted.item.item_id
+        ));
+
+        let replayed = handle_promote_receipt_purchase_unit(&restarted, promote_request).unwrap();
+        let mut expected_replay = promoted;
+        expected_replay.replay_status = ReplayStatusV1::Replayed;
+        assert_eq!(replayed, expected_replay);
+        assert_eq!(restarted.outbound_authority.active_leases_for_test(), 0);
+    }
+
+    #[test]
     fn storage_command_runs_real_worker_once_and_replays_without_duplicates() {
         let temporary = tempfile::tempdir().unwrap();
         let state =
@@ -4591,7 +5024,7 @@ Content-Type: text/html; charset=utf-8\r\n\r\n\
             format!("{:x}", Sha256::digest(&bytes))
         );
         assert_eq!(report.versions.export_schema_version, SCHEMA_VERSION_V1);
-        assert_eq!(report.versions.database_schema_version, 14);
+        assert_eq!(report.versions.database_schema_version, 17);
         assert_eq!(report.versions.migration_prefix_sha256.as_str().len(), 64);
         let counter = |name| {
             report
@@ -4971,5 +5404,143 @@ Content-Type: text/html; charset=utf-8\r\n\r\n\
                 "unexpectedly allowed {denied}"
             );
         }
+    }
+
+    #[test]
+    fn receipt_intelligence_commands() {
+        assert_eq!(
+            classify_command("preview_receipt_intelligence_v1"),
+            Some(CommandNetworkClass::Local)
+        );
+        assert_eq!(
+            classify_command("list_receipt_intelligence_v1"),
+            Some(CommandNetworkClass::Local)
+        );
+        assert_eq!(
+            classify_command("request_receipt_intelligence_v1"),
+            Some(CommandNetworkClass::Outbound(
+                OutboundCapability::OpenAiReceiptIntelligence
+            ))
+        );
+    }
+
+    #[test]
+    fn receipt_intelligence_packaged_disabled_state_smoke() {
+        let temporary = tempfile::tempdir().unwrap();
+        let state = initialize_state_with_gates(
+            temporary.path().join("data"),
+            temporary.path().join("logs"),
+            RemoteRecommendationReleaseGate { enabled: false },
+            TryOnReleaseGate { enabled: false },
+            ReceiptIntelligenceReleaseGate { enabled: false },
+        )
+        .unwrap();
+        assert!(state.receipt_intelligence.is_some());
+        assert_eq!(
+            state
+                .receipt_intelligence_release
+                .require()
+                .unwrap_err()
+                .code,
+            ErrorCodeV1::ProviderUnavailable
+        );
+        let listed = handle_list_receipt_intelligence(
+            &state,
+            ListReceiptIntelligenceV1Request {
+                schema_version: SCHEMA_VERSION_V1,
+                request_id: request_id(),
+                state: None,
+                classification: None,
+                cursor: None,
+                limit: 20,
+            },
+        )
+        .unwrap();
+        assert!(listed.attempts.is_empty());
+        assert_eq!(listed.receipt_intelligence_revision, 0);
+        assert_eq!(
+            listed.availability.reason,
+            Some(ReceiptIntelligenceAvailabilityReasonV1::LocalOnly)
+        );
+        assert!(state
+            .service
+            .list_receipts_v1(ListReceiptsV1Request {
+                schema_version: SCHEMA_VERSION_V1,
+                request_id: request_id(),
+                state: wardrobe_core::ReceiptStateV1::Unanalyzed,
+                cursor: None,
+                limit: 20,
+            })
+            .is_ok());
+        assert_eq!(state.outbound_authority.active_leases_for_test(), 0);
+    }
+
+    #[test]
+    fn receipt_intelligence_availability_override_is_truthful_and_ordered() {
+        let repository = ReceiptIntelligenceAvailabilityV1 {
+            available: true,
+            reason: None,
+            offline_receipt_analysis_available: true,
+            existing_wardrobe_access_available: true,
+        };
+        let disabled = ReceiptIntelligenceReleaseGate { enabled: false };
+        assert_eq!(
+            disabled
+                .override_availability(true, repository.clone())
+                .reason,
+            Some(ReceiptIntelligenceAvailabilityReasonV1::LocalOnly)
+        );
+        assert_eq!(
+            disabled
+                .override_availability(false, repository.clone())
+                .reason,
+            Some(ReceiptIntelligenceAvailabilityReasonV1::ReleaseEvidenceUnavailable)
+        );
+        assert_eq!(
+            ReceiptIntelligenceReleaseGate { enabled: true }
+                .override_availability(false, repository.clone()),
+            repository
+        );
+    }
+
+    #[test]
+    fn receipt_intelligence_vertical_gmail_to_review_smoke() {
+        assert!(matches!(
+            classify_command("request_receipt_intelligence_v1"),
+            Some(CommandNetworkClass::Outbound(
+                OutboundCapability::OpenAiReceiptIntelligence
+            ))
+        ));
+        assert!(
+            include_str!("../../apps/desktop-ui/src/receipt-intelligence-bridge.ts")
+                .contains("consent:")
+        );
+        assert!(include_str!(
+            "../../crates/wardrobe-platform/src/receipt_intelligence_coordinator.rs"
+        )
+        .contains("complete_receipt_intelligence_with_order"));
+        assert!(
+            include_str!("../../crates/wardrobe-platform/src/receipt_repository.rs")
+                .contains("publish_receipt_intelligence_order")
+        );
+    }
+
+    #[test]
+    fn receipt_intelligence_terminal_replay_precedes_remote_gates() {
+        let source = include_str!("lib.rs");
+        let replay = source
+            .find(".terminal_replay(&request)")
+            .expect("terminal replay preflight");
+        let release = source[replay..]
+            .find("receipt_intelligence_release.require()")
+            .map(|offset| replay + offset)
+            .expect("release gate");
+        let authority = source[release..]
+            .find("acquire_command_authority(state, \"request_receipt_intelligence_v1\")")
+            .map(|offset| release + offset)
+            .expect("outbound authority");
+
+        assert!(replay < release);
+        assert!(release < authority);
     }
 }

@@ -1,4 +1,5 @@
 use crate::{PlatformError, PlatformResult, PrivateAppPaths};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::ffi::CString;
 use std::fs::{self, File, OpenOptions};
@@ -6,10 +7,14 @@ use std::io::{Read, Write};
 use std::mem::MaybeUninit;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
+use std::os::unix::io::AsRawFd;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 use wardrobe_core::{BlobPort, BlobRecordV1, PortError, PortErrorKind, PortResult, Sha256Digest};
+
+const PREPARED_OPERATION_MANIFEST: &str = "manifest.json";
+const PREPARED_OPERATION_MANIFEST_LIMIT: u64 = 1024 * 1024;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlobRecord {
@@ -304,6 +309,214 @@ pub struct PreparedBlob {
     lease: Option<UnknownLengthBudgetLease>,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PreparedBlobMetadata {
+    pub sha256: String,
+    pub byte_length: u64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PreparedOperationManifest {
+    schema_version: u8,
+    namespace: String,
+    operation_id: String,
+    entries: Vec<PreparedOperationEntry>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+struct PreparedOperationEntry {
+    staging_name: String,
+    sha256: String,
+    byte_length: u64,
+    destination_preexisted: bool,
+}
+
+#[derive(Debug)]
+pub struct PreparedBlobOperation {
+    store: BlobStore,
+    namespace: String,
+    operation_id: String,
+    directory: PathBuf,
+    prepared: Vec<PreparedBlob>,
+    manifest: Option<PreparedOperationManifest>,
+    publication_lock: Option<BlobPublicationLock>,
+    published: bool,
+    committed: bool,
+}
+
+impl PreparedBlobOperation {
+    pub fn stage(
+        &mut self,
+        bytes: &[u8],
+        expected_sha256: Option<&str>,
+        max_bytes: u64,
+    ) -> PlatformResult<PreparedBlobMetadata> {
+        if self.published {
+            return Err(PlatformError::Conflict("blob_operation_published"));
+        }
+        if bytes.len() as u64 > max_bytes {
+            return Err(PlatformError::InvalidInput("blob_too_large"));
+        }
+        let sha256 = hex_digest(bytes);
+        if expected_sha256.is_some_and(|expected| expected != sha256) {
+            return Err(PlatformError::Corrupt("blob_expected_hash_mismatch"));
+        }
+        let staging_path = self
+            .directory
+            .join(format!("{}.part", Uuid::new_v4().hyphenated()));
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(&staging_path)?;
+        if let Err(error) = file.write_all(bytes).and_then(|()| file.sync_all()) {
+            drop(file);
+            let _ = fs::remove_file(&staging_path);
+            let _ = sync_directory(&self.directory);
+            return Err(error.into());
+        }
+        drop(file);
+        sync_directory(&self.directory)?;
+        verify_staged(&staging_path, &sha256, bytes.len() as u64)?;
+        self.prepared.push(PreparedBlob {
+            staging_path: Some(staging_path),
+            staging_directory: self.directory.clone(),
+            sha256: sha256.clone(),
+            byte_length: bytes.len() as u64,
+            lease: None,
+        });
+        Ok(PreparedBlobMetadata {
+            sha256,
+            byte_length: bytes.len() as u64,
+        })
+    }
+
+    pub fn publish(&mut self) -> PlatformResult<()> {
+        if self.published {
+            return Err(PlatformError::Conflict("blob_operation_published"));
+        }
+        self.publication_lock = Some(self.store.acquire_publication_lock()?);
+        let mut entries = Vec::with_capacity(self.prepared.len());
+        for prepared in &self.prepared {
+            let staging_path = prepared
+                .staging_path
+                .as_ref()
+                .ok_or(PlatformError::Corrupt("blob_operation_staging"))?;
+            verify_staged(staging_path, &prepared.sha256, prepared.byte_length)?;
+            let destination = self.store.path_for_hash(&prepared.sha256)?;
+            let parent = destination
+                .parent()
+                .ok_or(PlatformError::Corrupt("blob_destination_parent"))?;
+            create_private_directory(parent)?;
+            let destination_preexisted = match fs::symlink_metadata(&destination) {
+                Ok(_) => {
+                    verify_final(&destination, &prepared.sha256, Some(prepared.byte_length))?;
+                    true
+                }
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+                Err(error) => return Err(error.into()),
+            };
+            let staging_name = staging_path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .ok_or(PlatformError::Corrupt("blob_operation_staging_name"))?
+                .to_owned();
+            entries.push(PreparedOperationEntry {
+                staging_name,
+                sha256: prepared.sha256.clone(),
+                byte_length: prepared.byte_length,
+                destination_preexisted,
+            });
+        }
+        let manifest = PreparedOperationManifest {
+            schema_version: 1,
+            namespace: self.namespace.clone(),
+            operation_id: self.operation_id.clone(),
+            entries,
+        };
+        write_prepared_operation_manifest(&self.directory, &manifest)?;
+        self.manifest = Some(manifest);
+        self.published = true;
+
+        for entry in &self
+            .manifest
+            .as_ref()
+            .ok_or(PlatformError::Corrupt("blob_operation_manifest"))?
+            .entries
+        {
+            if entry.destination_preexisted {
+                continue;
+            }
+            let staging = self.directory.join(&entry.staging_name);
+            let destination = self.store.path_for_hash(&entry.sha256)?;
+            match fs::hard_link(&staging, &destination) {
+                Ok(()) => {}
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {
+                    verify_published(&destination, &entry.sha256, Some(entry.byte_length))?;
+                }
+                Err(error) => return Err(error.into()),
+            }
+            sync_directory(
+                destination
+                    .parent()
+                    .ok_or(PlatformError::Corrupt("blob_destination_parent"))?,
+            )?;
+        }
+        Ok(())
+    }
+
+    pub fn commit(mut self) {
+        if !self.published {
+            return;
+        }
+        self.committed = true;
+        let _ = cleanup_prepared_operation_directory(&self.directory, &mut self.prepared)
+            .and_then(|()| sync_directory(&self.store.staging));
+        self.publication_lock.take();
+    }
+
+    pub(crate) fn abandon_for_recovery(mut self) {
+        for prepared in &mut self.prepared {
+            prepared.staging_path.take();
+            prepared.lease.take();
+        }
+        self.publication_lock.take();
+        self.committed = true;
+    }
+}
+
+impl Drop for PreparedBlobOperation {
+    fn drop(&mut self) {
+        if self.committed {
+            return;
+        }
+        if self.published {
+            if let Some(manifest) = self.manifest.as_ref() {
+                for entry in &manifest.entries {
+                    if entry.destination_preexisted {
+                        continue;
+                    }
+                    let staging = self.directory.join(&entry.staging_name);
+                    let Ok(destination) = self.store.path_for_hash(&entry.sha256) else {
+                        continue;
+                    };
+                    if same_file(&staging, &destination).unwrap_or(false) {
+                        let _ = fs::remove_file(&destination);
+                        if let Some(parent) = destination.parent() {
+                            let _ = sync_directory(parent);
+                        }
+                    }
+                }
+            }
+        }
+        let _ = cleanup_prepared_operation_directory(&self.directory, &mut self.prepared);
+        let _ = sync_directory(&self.store.staging);
+    }
+}
+
 impl PreparedBlob {
     pub fn sha256(&self) -> &str {
         &self.sha256
@@ -398,6 +611,19 @@ pub struct BlobStore {
     staging: PathBuf,
 }
 
+#[derive(Debug)]
+struct BlobPublicationLock {
+    file: File,
+}
+
+impl Drop for BlobPublicationLock {
+    fn drop(&mut self) {
+        unsafe {
+            libc::flock(self.file.as_raw_fd(), libc::LOCK_UN);
+        }
+    }
+}
+
 impl BlobStore {
     pub fn new(paths: &PrivateAppPaths) -> Self {
         Self {
@@ -412,6 +638,7 @@ impl BlobStore {
         expected_sha256: Option<&str>,
         max_bytes: u64,
     ) -> PlatformResult<BlobRecord> {
+        let _publication_lock = self.acquire_publication_lock()?;
         if bytes.len() as u64 > max_bytes {
             return Err(PlatformError::InvalidInput("blob_too_large"));
         }
@@ -440,6 +667,7 @@ impl BlobStore {
         expected_length: u64,
         max_bytes: u64,
     ) -> PlatformResult<BlobRecord> {
+        let _publication_lock = self.acquire_publication_lock()?;
         if expected_length > max_bytes {
             return Err(PlatformError::InvalidInput("blob_too_large"));
         }
@@ -509,7 +737,76 @@ impl BlobStore {
         })
     }
 
+    pub fn begin_prepared_operation(
+        &self,
+        namespace: &str,
+    ) -> PlatformResult<PreparedBlobOperation> {
+        validate_operation_namespace(namespace)?;
+        let operation_id = Uuid::new_v4().hyphenated().to_string();
+        let directory = self
+            .staging
+            .join(format!(".{namespace}-publication-{operation_id}"));
+        fs::create_dir(&directory)?;
+        fs::set_permissions(&directory, fs::Permissions::from_mode(0o700))?;
+        sync_directory(&self.staging)?;
+        Ok(PreparedBlobOperation {
+            store: self.clone(),
+            namespace: namespace.to_owned(),
+            operation_id,
+            directory,
+            prepared: Vec::new(),
+            manifest: None,
+            publication_lock: None,
+            published: false,
+            committed: false,
+        })
+    }
+
+    pub fn recover_prepared_operations<F>(
+        &self,
+        namespace: &str,
+        mut is_committed: F,
+    ) -> PlatformResult<()>
+    where
+        F: FnMut(&str, u64) -> PlatformResult<bool>,
+    {
+        validate_operation_namespace(namespace)?;
+        let _publication_lock = self.acquire_publication_lock()?;
+        let prefix = format!(".{namespace}-publication-");
+        for entry in fs::read_dir(&self.staging)? {
+            let entry = entry?;
+            let name = entry
+                .file_name()
+                .into_string()
+                .map_err(|_| PlatformError::Corrupt("blob_operation_directory"))?;
+            if !name.starts_with(&prefix) {
+                continue;
+            }
+            let metadata = fs::symlink_metadata(entry.path())?;
+            if !metadata.file_type().is_dir()
+                || metadata.file_type().is_symlink()
+                || metadata.mode() & 0o077 != 0
+            {
+                return Err(PlatformError::Corrupt("blob_operation_directory"));
+            }
+            let operation_id = name
+                .strip_prefix(&prefix)
+                .ok_or(PlatformError::Corrupt("blob_operation_directory"))?;
+            Uuid::parse_str(operation_id)
+                .map_err(|_| PlatformError::Corrupt("blob_operation_directory"))?;
+            recover_prepared_operation(
+                self,
+                namespace,
+                operation_id,
+                &entry.path(),
+                &mut is_committed,
+            )?;
+        }
+        sync_directory(&self.staging)
+    }
+
     pub fn promote_prepared(&self, mut prepared: PreparedBlob) -> PlatformResult<BlobRecord> {
+        let _publication_lock = self.acquire_publication_lock()?;
         let staging_path = prepared
             .staging_path
             .as_ref()
@@ -548,6 +845,26 @@ impl BlobStore {
             .join(&sha256[0..2])
             .join(&sha256[2..4])
             .join(sha256))
+    }
+
+    fn acquire_publication_lock(&self) -> PlatformResult<BlobPublicationLock> {
+        let path = self.root.join(".publication.lock");
+        let file = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+            .open(path)?;
+        let metadata = file.metadata()?;
+        if !metadata.file_type().is_file() || metadata.mode() & 0o077 != 0 {
+            return Err(PlatformError::Corrupt("blob_publication_lock"));
+        }
+        let result = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) };
+        if result != 0 {
+            return Err(std::io::Error::last_os_error().into());
+        }
+        Ok(BlobPublicationLock { file })
     }
 
     fn put_staged(
@@ -599,6 +916,153 @@ impl BlobStore {
             reused,
         })
     }
+}
+
+fn write_prepared_operation_manifest(
+    directory: &Path,
+    manifest: &PreparedOperationManifest,
+) -> PlatformResult<()> {
+    let bytes = serde_json::to_vec(manifest)?;
+    if bytes.len() as u64 > PREPARED_OPERATION_MANIFEST_LIMIT {
+        return Err(PlatformError::InvalidInput("blob_operation_manifest_size"));
+    }
+    let temporary = directory.join("manifest.tmp");
+    let final_path = directory.join(PREPARED_OPERATION_MANIFEST);
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(&temporary)?;
+    file.write_all(&bytes)?;
+    file.sync_all()?;
+    drop(file);
+    fs::rename(&temporary, &final_path)?;
+    sync_directory(directory)
+}
+
+fn recover_prepared_operation<F>(
+    store: &BlobStore,
+    namespace: &str,
+    operation_id: &str,
+    directory: &Path,
+    is_committed: &mut F,
+) -> PlatformResult<()>
+where
+    F: FnMut(&str, u64) -> PlatformResult<bool>,
+{
+    let manifest_path = directory.join(PREPARED_OPERATION_MANIFEST);
+    let manifest = match OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(&manifest_path)
+    {
+        Ok(mut file) => {
+            let metadata = file.metadata()?;
+            if !metadata.file_type().is_file()
+                || metadata.mode() & 0o077 != 0
+                || metadata.len() > PREPARED_OPERATION_MANIFEST_LIMIT
+            {
+                return Err(PlatformError::Corrupt("blob_operation_manifest"));
+            }
+            let mut bytes = Vec::with_capacity(metadata.len() as usize);
+            file.read_to_end(&mut bytes)?;
+            let manifest: PreparedOperationManifest = serde_json::from_slice(&bytes)?;
+            if manifest.schema_version != 1
+                || manifest.namespace != namespace
+                || manifest.operation_id != operation_id
+            {
+                return Err(PlatformError::Corrupt("blob_operation_manifest"));
+            }
+            Some(manifest)
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => None,
+        Err(error) => return Err(error.into()),
+    };
+
+    if let Some(manifest) = manifest {
+        for entry in &manifest.entries {
+            validate_operation_staging_name(&entry.staging_name)?;
+            validate_hash(&entry.sha256)?;
+            let staging = directory.join(&entry.staging_name);
+            let destination = store.path_for_hash(&entry.sha256)?;
+            let committed = is_committed(&entry.sha256, entry.byte_length)?;
+            if committed {
+                verify_published(&destination, &entry.sha256, Some(entry.byte_length))?;
+            } else if !entry.destination_preexisted
+                && same_file(&staging, &destination).unwrap_or(false)
+            {
+                fs::remove_file(&destination)?;
+                sync_directory(
+                    destination
+                        .parent()
+                        .ok_or(PlatformError::Corrupt("blob_destination_parent"))?,
+                )?;
+            }
+        }
+    }
+    let mut no_prepared = Vec::new();
+    cleanup_prepared_operation_directory(directory, &mut no_prepared)?;
+    Ok(())
+}
+
+fn cleanup_prepared_operation_directory(
+    directory: &Path,
+    prepared: &mut [PreparedBlob],
+) -> PlatformResult<()> {
+    for blob in prepared {
+        blob.staging_path.take();
+        blob.lease.take();
+    }
+    for entry in fs::read_dir(directory)? {
+        let entry = entry?;
+        let metadata = fs::symlink_metadata(entry.path())?;
+        if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+            return Err(PlatformError::Corrupt("blob_operation_entry"));
+        }
+        fs::remove_file(entry.path())?;
+    }
+    fs::remove_dir(directory)?;
+    Ok(())
+}
+
+fn validate_operation_namespace(namespace: &str) -> PlatformResult<()> {
+    if namespace.is_empty()
+        || namespace.len() > 32
+        || !namespace
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+    {
+        return Err(PlatformError::InvalidInput("blob_operation_namespace"));
+    }
+    Ok(())
+}
+
+fn validate_operation_staging_name(name: &str) -> PlatformResult<()> {
+    let Some(id) = name.strip_suffix(".part") else {
+        return Err(PlatformError::Corrupt("blob_operation_staging_name"));
+    };
+    Uuid::parse_str(id).map_err(|_| PlatformError::Corrupt("blob_operation_staging_name"))?;
+    Ok(())
+}
+
+fn same_file(left: &Path, right: &Path) -> PlatformResult<bool> {
+    let left = match fs::symlink_metadata(left) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error.into()),
+    };
+    let right = match fs::symlink_metadata(right) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(false),
+        Err(error) => return Err(error.into()),
+    };
+    Ok(left.file_type().is_file()
+        && right.file_type().is_file()
+        && !left.file_type().is_symlink()
+        && !right.file_type().is_symlink()
+        && left.dev() == right.dev()
+        && left.ino() == right.ino())
 }
 
 fn available_bytes(path: &Path) -> PlatformResult<u64> {
@@ -679,6 +1143,30 @@ fn verify_final(
     Ok(metadata.len())
 }
 
+fn verify_published(
+    path: &Path,
+    expected_hash: &str,
+    expected_length: Option<u64>,
+) -> PlatformResult<u64> {
+    let mut file = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
+        .open(path)?;
+    let metadata = file.metadata()?;
+    if !metadata.file_type().is_file() || metadata.mode() & 0o077 != 0 {
+        return Err(PlatformError::Corrupt("blob_final_identity"));
+    }
+    if expected_length.is_some_and(|length| length != metadata.len()) {
+        return Err(PlatformError::Corrupt("blob_final_length"));
+    }
+    let mut digest = Sha256::new();
+    let copied = std::io::copy(&mut file, &mut digest)?;
+    if copied != metadata.len() || format!("{:x}", digest.finalize()) != expected_hash {
+        return Err(PlatformError::Corrupt("blob_final_hash"));
+    }
+    Ok(metadata.len())
+}
+
 fn create_private_directory(path: &Path) -> PlatformResult<()> {
     fs::create_dir_all(path)?;
     fs::set_permissions(path, fs::Permissions::from_mode(0o700))?;
@@ -694,6 +1182,8 @@ pub(crate) fn sync_directory(path: &Path) -> PlatformResult<()> {
 mod tests {
     use super::*;
     use std::os::unix::fs::MetadataExt;
+    use std::sync::mpsc;
+    use std::time::Duration;
 
     #[test]
     fn promotes_reuses_and_reverifies_without_staging_alias() {
@@ -860,5 +1350,34 @@ mod tests {
         assert_eq!(state.active_staging_bytes, 0);
         assert_eq!(state.accepted_run_bytes, 16);
         assert_eq!(fs::read_dir(&paths.staging).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn operation_rollback_serializes_same_hash_importer_before_removal() {
+        let temporary = tempfile::tempdir().unwrap();
+        let paths = PrivateAppPaths::create(temporary.path().join("app")).unwrap();
+        let store = BlobStore::new(&paths);
+        let bytes = b"same hash publication";
+        let mut operation = store.begin_prepared_operation("gmail").unwrap();
+        operation.stage(bytes, None, 1024).unwrap();
+        operation.publish().unwrap();
+
+        let concurrent_store = store.clone();
+        let (sender, receiver) = mpsc::channel();
+        let thread = std::thread::spawn(move || {
+            sender
+                .send(concurrent_store.put(bytes, None, 1024))
+                .unwrap();
+        });
+        assert!(receiver.recv_timeout(Duration::from_millis(50)).is_err());
+        drop(operation);
+
+        let imported = receiver
+            .recv_timeout(Duration::from_secs(2))
+            .unwrap()
+            .unwrap();
+        thread.join().unwrap();
+        assert!(!imported.reused);
+        assert_eq!(store.verify(&imported.sha256).unwrap().path, imported.path);
     }
 }

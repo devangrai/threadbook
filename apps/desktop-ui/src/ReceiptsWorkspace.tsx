@@ -11,6 +11,16 @@ import {
   receiptBridge,
   type ReceiptBridge,
 } from "./receipt-bridge";
+import {
+  receiptIntelligenceBridge,
+  type ReceiptIntelligenceBridge,
+} from "./receipt-intelligence-bridge";
+import {
+  receiptPromotionBridge,
+  type ReceiptPromotionBridge,
+} from "./receipt-promotion-bridge";
+import { ReceiptIntelligencePanel } from "./ReceiptIntelligencePanel";
+import { ReceiptPurchaseUnits } from "./ReceiptPurchaseUnits";
 import type {
   CorrectedReceiptOrderV1,
   ApproveAndFetchReceiptImageV1Response,
@@ -51,11 +61,15 @@ const receiptStates: ReadonlyArray<{
 type ReceiptsWorkspaceProps = {
   localOnly: boolean;
   bridge?: ReceiptBridge;
+  intelligenceBridge?: ReceiptIntelligenceBridge;
+  promotionBridge?: ReceiptPromotionBridge;
 };
 
 export function ReceiptsWorkspace({
   localOnly,
   bridge = receiptBridge,
+  intelligenceBridge = receiptIntelligenceBridge,
+  promotionBridge = receiptPromotionBridge,
 }: ReceiptsWorkspaceProps) {
   const [filter, setFilter] = useState<ReceiptStateV1>("unanalyzed");
   const [page, setPage] = useState<ListReceiptsV1Response | null>(null);
@@ -282,9 +296,12 @@ export function ReceiptsWorkspace({
                 <ReceiptSummary
                   summary={summary}
                   localOnly={localOnly}
+                  intelligenceBridge={intelligenceBridge}
+                  promotionBridge={promotionBridge}
                   verified={verified}
                   busy={busy}
                   onAnalyze={() => void analyze(summary)}
+                  onOpenRemoteReview={() => setFilter("needs_review")}
                   onReview={(order, action) =>
                     void review(order, action, null)
                   }
@@ -385,9 +402,12 @@ export function ReceiptsWorkspace({
 function ReceiptSummary({
   summary,
   localOnly,
+  intelligenceBridge,
+  promotionBridge,
   verified,
   busy,
   onAnalyze,
+  onOpenRemoteReview,
   onReview,
   onCorrect,
   candidates,
@@ -397,9 +417,12 @@ function ReceiptSummary({
 }: {
   summary: ReceiptSummaryV1;
   localOnly: boolean;
+  intelligenceBridge: ReceiptIntelligenceBridge;
+  promotionBridge: ReceiptPromotionBridge;
   verified?: VerifiedReceiptOrder;
   busy: string | null;
   onAnalyze: () => void;
+  onOpenRemoteReview: () => void;
   onReview: (
     order: ReceiptOrderEvidenceV1,
     action: Exclude<ReceiptReviewActionV1, "correct">,
@@ -462,11 +485,11 @@ function ReceiptSummary({
             type="button"
             disabled={busy !== null}
             onClick={onAnalyze}
-            aria-label={`Analyze receipt from ${summary.merchant ?? "unknown merchant"}`}
+            aria-label={`Offline analyze receipt from ${summary.merchant ?? "unknown merchant"}`}
           >
             {busy === `analyze:${summary.source_id}`
-              ? "Analyzing..."
-              : "Analyze"}
+              ? "Analyzing offline..."
+              : "Offline analyze"}
           </button>
         </div>
       ) : (
@@ -475,6 +498,20 @@ function ReceiptSummary({
             ? `Latest review: ${humanize(summary.review_head.decision.action)}`
             : "Receipt evidence available"}
         </p>
+      )}
+
+      <ReceiptIntelligencePanel
+        sourceId={summary.source_id}
+        localOnly={localOnly}
+        bridge={intelligenceBridge}
+        onOpenReview={onOpenRemoteReview}
+      />
+
+      {(summary.state === "confirmed" || summary.state === "corrected") && (
+        <ReceiptPurchaseUnits
+          sourceId={summary.source_id}
+          bridge={promotionBridge}
+        />
       )}
 
       {summary.processing && (

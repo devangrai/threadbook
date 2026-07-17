@@ -36,7 +36,7 @@ fn manifest() -> UpdateManifestV1 {
         accepted_source_version_min: "0.1.0".to_owned(),
         accepted_source_version_max: "0.1.9".to_owned(),
         accepted_databases: vec![source_database()],
-        target_database_schema_version: 14,
+        target_database_schema_version: 15,
         target_migration_prefix_sha256: digest('c'),
         required_backup_format_version: 1,
         required_asset_manifest_version: 1,

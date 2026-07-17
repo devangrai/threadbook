@@ -1,4 +1,12 @@
 use crate::database::stable_id;
+use crate::receipt_intelligence_provider::{
+    ReceiptIntelligenceCitation, ReceiptIntelligenceEventEvidence, ReceiptIntelligenceEventKind,
+    ReceiptIntelligenceExtraction, ReceiptIntelligenceOutput, ReceiptIntelligenceStringEvidence,
+    ReceiptIntelligenceU64Evidence,
+};
+use crate::receipt_intelligence_repository::{
+    ReceiptIntelligenceAuditMetadata, ReceiptIntelligenceClassification,
+};
 use crate::receipt_parser::{
     parse_receipt_bundle_v1, ParsedReceiptBundleV1, ReceiptImageCandidateEligibilityV1,
     ReceiptImageCandidateInputV1, MAX_RAW_MESSAGE_BYTES,
@@ -22,18 +30,21 @@ use wardrobe_core::{
     EvidenceStringV1, EvidenceU64V1, FragmentCitationV1, ListReceiptImageCandidatesV1Request,
     ListReceiptImageCandidatesV1Response, ListReceiptsV1Request, ListReceiptsV1Response,
     PageCursorV1, ParsedReceiptEvidenceV1, ReceiptAnalysisFailureV1, ReceiptAnalysisPlanV1,
-    ReceiptEventKindV1, ReceiptExtractionEnvelopeV1, ReceiptExtractionRunId, ReceiptFragmentId,
-    ReceiptFragmentKindV1, ReceiptFragmentV1, ReceiptImageAttemptId, ReceiptImageAttemptOutcomeV1,
+    ReceiptEventKindV1, ReceiptExtractionEnvelopeV1, ReceiptExtractionRunId,
+    ReceiptExtractionSchemaV1, ReceiptExtractionV1, ReceiptFragmentId, ReceiptFragmentKindV1,
+    ReceiptFragmentV1, ReceiptImageAttemptId, ReceiptImageAttemptOutcomeV1,
     ReceiptImageAttemptPlanV1, ReceiptImageAttemptSummaryV1,
     ReceiptImageCandidateEligibilityV1 as CoreReceiptImageCandidateEligibilityV1,
     ReceiptImageCandidateId, ReceiptImageCandidateSummaryV1, ReceiptImageDownloadV1,
-    ReceiptImageFailureCodeV1, ReceiptOrderEvidenceId, ReceiptOrderEvidenceV1, ReceiptOrderLineId,
-    ReceiptOrderLineV1, ReceiptPort, ReceiptPortError, ReceiptPortErrorKind, ReceiptPortResult,
-    ReceiptProcessingMetadataV1, ReceiptRemoteImageId, ReceiptRemoteImageV1, ReceiptReviewActionV1,
+    ReceiptImageFailureCodeV1, ReceiptLineItemExtractionV1, ReceiptOrderEvidenceId,
+    ReceiptOrderEvidenceV1, ReceiptOrderLineId, ReceiptOrderLineV1, ReceiptPort, ReceiptPortError,
+    ReceiptPortErrorKind, ReceiptPortResult, ReceiptProcessingMetadataV1,
+    ReceiptProviderParametersV1, ReceiptRemoteImageId, ReceiptRemoteImageV1, ReceiptReviewActionV1,
     ReceiptReviewDecisionId, ReceiptReviewDecisionV1, ReceiptReviewHeadV1, ReceiptStateV1,
-    ReceiptSummaryV1, ReceiptVariantEvidenceId, ReceiptVariantEvidenceV1, ReplayStatusV1,
-    RequestId, ReviewReceiptV1Request, ReviewReceiptV1Response, Sha256Digest, SourceId, Validate,
-    SCHEMA_VERSION_V1,
+    ReceiptSummaryV1, ReceiptVariantEvidenceId, ReceiptVariantEvidenceV1,
+    ReceiptVariantExtractionV1, ReplayStatusV1, RequestId, ReviewReceiptV1Request,
+    ReviewReceiptV1Response, Sha256Digest, SourceId, Validate, RECEIPT_EXTRACTION_SCHEMA_SHA256_V1,
+    RECEIPT_EXTRACTION_SCHEMA_V1, SCHEMA_VERSION_V1,
 };
 
 const ANALYZE_RECEIPT_COMMAND: &str = "analyze_receipt_v1";
@@ -452,6 +463,41 @@ impl ReceiptPort for Database {
 }
 
 impl Database {
+    pub fn complete_receipt_intelligence_with_order(
+        &self,
+        attempt_id: &str,
+        classification: ReceiptIntelligenceClassification,
+        output: &ReceiptIntelligenceOutput,
+        audit: &ReceiptIntelligenceAuditMetadata,
+        now_ms: i64,
+    ) -> PlatformResult<()> {
+        if !matches!(
+            classification,
+            ReceiptIntelligenceClassification::ApparelOrder
+                | ReceiptIntelligenceClassification::ApparelLifecycle
+        ) {
+            return Err(PlatformError::InvalidInput(
+                "receipt_intelligence_classification",
+            ));
+        }
+        let extraction = output
+            .extraction
+            .as_ref()
+            .ok_or(PlatformError::InvalidInput(
+                "receipt_intelligence_extraction",
+            ))?;
+        self.complete_receipt_intelligence_with_publication(
+            attempt_id,
+            classification,
+            audit,
+            now_ms,
+            |transaction| {
+                publish_receipt_intelligence_order(transaction, attempt_id, extraction, now_ms)
+                    .map(Some)
+            },
+        )
+    }
+
     pub fn backfill_receipt_image_candidates(&self, source_id: SourceId) -> PlatformResult<usize> {
         let mut connection = self.connection()?;
         let source = connection
@@ -1457,6 +1503,34 @@ impl Database {
                 updated_at_ms = excluded.updated_at_ms",
             params![order_id, decision_id, next_revision as i64, now_ms],
         )?;
+        transaction.execute(
+            "INSERT INTO receipt_source_authority_heads(
+                local_source_id, authority_id, authority_kind,
+                order_evidence_id, review_decision_id, receipt_revision,
+                authority_revision, updated_at_ms
+             )
+             SELECT
+                parse.source_id, ?2, 'user_reviewed', ?1, ?2, ?3,
+                COALESCE((
+                    SELECT authority_revision + 1
+                    FROM receipt_source_authority_heads existing
+                    WHERE existing.local_source_id = parse.source_id
+                ), 1),
+                ?4
+             FROM receipt_orders receipt_order
+             JOIN receipt_extraction_runs run
+               ON run.run_id = receipt_order.run_id
+             JOIN receipt_parses parse ON parse.parse_id = run.parse_id
+             WHERE receipt_order.order_evidence_id = ?1
+             ON CONFLICT(local_source_id) DO UPDATE SET
+                authority_id = excluded.authority_id,
+                order_evidence_id = excluded.order_evidence_id,
+                review_decision_id = excluded.review_decision_id,
+                receipt_revision = excluded.receipt_revision,
+                authority_revision = excluded.authority_revision,
+                updated_at_ms = excluded.updated_at_ms",
+            params![order_id, decision_id, next_revision as i64, now_ms],
+        )?;
         let order = load_order(&transaction, &order_id)?;
         let decision = load_review_decision(&transaction, &decision_id)?;
         let (_, evidence_generation) = revisions(&transaction)?;
@@ -1556,7 +1630,307 @@ impl Database {
     }
 }
 
-fn persist_parse(
+fn publish_receipt_intelligence_order(
+    transaction: &Transaction<'_>,
+    attempt_id: &str,
+    extraction: &ReceiptIntelligenceExtraction,
+    now_ms: i64,
+) -> PlatformResult<String> {
+    let source_id_text: String = transaction.query_row(
+        "SELECT local_source_id
+         FROM receipt_intelligence_attempts
+         WHERE attempt_id = ?1 AND state = 'dispatched'",
+        [attempt_id],
+        |row| row.get(0),
+    )?;
+    let source_id = parse_source_id(&source_id_text)?;
+    let parse_id: String = transaction
+        .query_row(
+            "SELECT parse_id
+             FROM receipt_parses
+             WHERE source_id = ?1
+             ORDER BY created_at_ms DESC, parse_id DESC
+             LIMIT 1",
+            [&source_id_text],
+            |row| row.get(0),
+        )
+        .optional()?
+        .ok_or(PlatformError::Conflict(
+            "receipt_intelligence_parse_unavailable",
+        ))?;
+    let parsed = load_parse(transaction, &parse_id)?;
+    if parsed.source_id != source_id {
+        return Err(PlatformError::Conflict(
+            "receipt_intelligence_parse_changed",
+        ));
+    }
+    let output = convert_receipt_intelligence_extraction(extraction, &parsed)?;
+    output
+        .validate_against(&parsed)
+        .map_err(|_| PlatformError::InvalidInput("receipt_intelligence_provider_output"))?;
+    let ruleset_definition = b"receipt-intelligence-prompt-v1:exact-quote-validation";
+    let processing = ReceiptProcessingMetadataV1 {
+        provider_id: "receipt-intelligence-citation-validator".to_owned(),
+        provider_revision: "receipt-intelligence-citation-validator-v1".to_owned(),
+        extraction_schema: RECEIPT_EXTRACTION_SCHEMA_V1.to_owned(),
+        extraction_schema_sha256: Sha256Digest::parse(
+            RECEIPT_EXTRACTION_SCHEMA_SHA256_V1.to_owned(),
+        )
+        .map_err(|_| PlatformError::Corrupt("receipt_extraction_schema_sha256"))?,
+        ruleset_revision: "receipt-intelligence-prompt-v1".to_owned(),
+        ruleset_sha256: Sha256Digest::from_bytes(ruleset_definition),
+        parameters: ReceiptProviderParametersV1 {
+            deterministic: true,
+            temperature_milli: 0,
+            locale: None,
+        },
+        canonical_input_sha256: parsed.canonical_input_sha256.clone(),
+        parent_source_id: parsed.source_id,
+        parent_source_sha256: parsed.raw_blob_sha256.clone(),
+        fragment_sha256: parsed
+            .fragments
+            .iter()
+            .map(|fragment| fragment.content_sha256.clone())
+            .collect(),
+    };
+    let envelope = ReceiptExtractionEnvelopeV1 {
+        processing,
+        output: output.clone(),
+    };
+    envelope
+        .validate_against(&parsed)
+        .map_err(|_| PlatformError::InvalidInput("receipt_intelligence_provider_output"))?;
+
+    let run_id = stable_id("receipt-intelligence-run", attempt_id);
+    let order_id = parse_order_id(&stable_id("receipt-order", &run_id))?;
+    let order = receipt_order_from_extraction(&run_id, order_id, &parsed, &output)?;
+    let existing: Option<String> = transaction
+        .query_row(
+            "SELECT status FROM receipt_extraction_runs WHERE run_id = ?1",
+            [&run_id],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if let Some(status) = existing {
+        if status != "succeeded" {
+            return Err(PlatformError::Conflict("receipt_intelligence_run_changed"));
+        }
+        return Ok(load_order_by_run(transaction, &run_id)?
+            .order_evidence_id
+            .to_string());
+    }
+
+    let fragment_hashes = parsed
+        .fragments
+        .iter()
+        .map(|fragment| fragment.content_sha256.clone())
+        .collect::<Vec<_>>();
+    transaction.execute(
+        "INSERT INTO receipt_extraction_runs(
+            run_id, parse_id, provider_id, provider_revision, schema_version,
+            schema_sha256, ruleset_revision, ruleset_sha256, parameters_json,
+            canonical_input_sha256, parent_source_sha256,
+            parent_fragment_hashes_json, status, created_at_ms
+         ) VALUES (
+            ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9,
+            ?10, ?11, ?12, 'pending', ?13
+         )",
+        params![
+            run_id,
+            parsed.parse_id.to_string(),
+            envelope.processing.provider_id,
+            envelope.processing.provider_revision,
+            envelope.processing.extraction_schema,
+            envelope.processing.extraction_schema_sha256.as_str(),
+            envelope.processing.ruleset_revision,
+            envelope.processing.ruleset_sha256.as_str(),
+            serde_json::to_string(&envelope.processing.parameters)?,
+            parsed.canonical_input_sha256.as_str(),
+            parsed.raw_blob_sha256.as_str(),
+            serde_json::to_string(&fragment_hashes)?,
+            now_ms,
+        ],
+    )?;
+    persist_order_graph(transaction, &order, now_ms)?;
+    let envelope_json = serde_json::to_string(&envelope)?;
+    let output_json = serde_json::to_string(&output)?;
+    let output_sha256 = digest_bytes(output_json.as_bytes());
+    transaction.execute(
+        "UPDATE receipt_extraction_runs
+         SET envelope_json = ?2, output_json = ?3, output_sha256 = ?4,
+             status = 'succeeded', completed_at_ms = ?5
+         WHERE run_id = ?1 AND status = 'pending'",
+        params![run_id, envelope_json, output_json, output_sha256, now_ms],
+    )?;
+    transaction.execute(
+        "UPDATE revision_state
+         SET evidence_generation = evidence_generation + 1
+         WHERE singleton = 1",
+        [],
+    )?;
+    Ok(order.order_evidence_id.to_string())
+}
+
+fn convert_receipt_intelligence_extraction(
+    extraction: &ReceiptIntelligenceExtraction,
+    parsed: &ParsedReceiptEvidenceV1,
+) -> PlatformResult<ReceiptExtractionV1> {
+    Ok(ReceiptExtractionV1 {
+        schema_version: ReceiptExtractionSchemaV1::V1,
+        merchant: convert_string_evidence(&extraction.merchant, parsed)?,
+        order_identifier: convert_string_evidence(&extraction.order_identifier, parsed)?,
+        purchase_date: convert_string_evidence(&extraction.purchase_date, parsed)?,
+        currency: convert_string_evidence(&extraction.currency, parsed)?,
+        line_items: extraction
+            .line_items
+            .iter()
+            .map(|line| {
+                Ok(ReceiptLineItemExtractionV1 {
+                    description: convert_string_evidence(&line.description, parsed)?,
+                    event_kind: convert_event_evidence(&line.event_kind, parsed)?,
+                    quantity: convert_u64_evidence(&line.quantity, parsed)?,
+                    unit_price_minor: convert_u64_evidence(&line.unit_price_minor, parsed)?,
+                    variant: ReceiptVariantExtractionV1 {
+                        brand: convert_string_evidence(&line.variant.brand, parsed)?,
+                        sku: convert_string_evidence(&line.variant.sku, parsed)?,
+                        size: convert_string_evidence(&line.variant.size, parsed)?,
+                        color: convert_string_evidence(&line.variant.color, parsed)?,
+                    },
+                })
+            })
+            .collect::<PlatformResult<Vec<_>>>()?,
+    })
+}
+
+fn convert_string_evidence(
+    evidence: &ReceiptIntelligenceStringEvidence,
+    parsed: &ParsedReceiptEvidenceV1,
+) -> PlatformResult<EvidenceStringV1> {
+    Ok(EvidenceStringV1 {
+        value: evidence.value.clone(),
+        citations: convert_citations(&evidence.citations, parsed)?,
+    })
+}
+
+fn convert_u64_evidence(
+    evidence: &ReceiptIntelligenceU64Evidence,
+    parsed: &ParsedReceiptEvidenceV1,
+) -> PlatformResult<EvidenceU64V1> {
+    Ok(EvidenceU64V1 {
+        value: evidence.value,
+        citations: convert_citations(&evidence.citations, parsed)?,
+    })
+}
+
+fn convert_event_evidence(
+    evidence: &ReceiptIntelligenceEventEvidence,
+    parsed: &ParsedReceiptEvidenceV1,
+) -> PlatformResult<EvidenceEventKindV1> {
+    Ok(EvidenceEventKindV1 {
+        value: evidence.value.map(|value| match value {
+            ReceiptIntelligenceEventKind::Purchase => ReceiptEventKindV1::Purchase,
+            ReceiptIntelligenceEventKind::Return => ReceiptEventKindV1::Return,
+            ReceiptIntelligenceEventKind::Exchange => ReceiptEventKindV1::Exchange,
+        }),
+        citations: convert_citations(&evidence.citations, parsed)?,
+    })
+}
+
+fn convert_citations(
+    citations: &[ReceiptIntelligenceCitation],
+    parsed: &ParsedReceiptEvidenceV1,
+) -> PlatformResult<Vec<FragmentCitationV1>> {
+    let visible_fragments = parsed
+        .fragments
+        .iter()
+        .filter(|fragment| {
+            matches!(
+                fragment.kind,
+                ReceiptFragmentKindV1::PlainText | ReceiptFragmentKindV1::SanitizedHtml
+            )
+        })
+        .collect::<Vec<_>>();
+    citations
+        .iter()
+        .map(|citation| {
+            let ordinal = citation
+                .fragment_ref
+                .strip_prefix("fragment-")
+                .and_then(|value| value.parse::<usize>().ok())
+                .ok_or(PlatformError::InvalidInput("receipt_intelligence_citation"))?;
+            let fragment = visible_fragments
+                .get(ordinal)
+                .ok_or(PlatformError::InvalidInput("receipt_intelligence_citation"))?;
+            let matches = fragment
+                .text
+                .match_indices(&citation.quote)
+                .take(2)
+                .collect::<Vec<_>>();
+            if matches.len() != 1 {
+                return Err(PlatformError::InvalidInput("receipt_intelligence_citation"));
+            }
+            let start = matches[0].0;
+            let end = start + citation.quote.len();
+            Ok(FragmentCitationV1 {
+                fragment_id: fragment.fragment_id,
+                byte_start: u32::try_from(start)
+                    .map_err(|_| PlatformError::InvalidInput("receipt_intelligence_citation"))?,
+                byte_end: u32::try_from(end)
+                    .map_err(|_| PlatformError::InvalidInput("receipt_intelligence_citation"))?,
+                quote_sha256: Sha256Digest::from_bytes(citation.quote.as_bytes()),
+            })
+        })
+        .collect()
+}
+
+fn receipt_order_from_extraction(
+    run_id: &str,
+    order_id: ReceiptOrderEvidenceId,
+    parsed: &ParsedReceiptEvidenceV1,
+    output: &ReceiptExtractionV1,
+) -> PlatformResult<ReceiptOrderEvidenceV1> {
+    let mut lines = Vec::with_capacity(output.line_items.len());
+    for (index, extracted) in output.line_items.iter().enumerate() {
+        let line_id = parse_line_id(&stable_id("receipt-line", &format!("{order_id}:{index}")))?;
+        lines.push(ReceiptOrderLineV1 {
+            order_line_id: line_id,
+            line_number: u16::try_from(index + 1)
+                .map_err(|_| PlatformError::Corrupt("receipt_line_number"))?,
+            description: extracted.description.clone(),
+            event_kind: extracted.event_kind.clone(),
+            quantity: extracted.quantity.clone(),
+            unit_price_minor: extracted.unit_price_minor.clone(),
+            variant: ReceiptVariantEvidenceV1 {
+                variant_evidence_id: parse_variant_id(&stable_id(
+                    "receipt-variant",
+                    &line_id.to_string(),
+                ))?,
+                brand: extracted.variant.brand.clone(),
+                sku: extracted.variant.sku.clone(),
+                size: extracted.variant.size.clone(),
+                color: extracted.variant.color.clone(),
+            },
+        });
+    }
+    let order = ReceiptOrderEvidenceV1 {
+        order_evidence_id: order_id,
+        extraction_run_id: parse_run_id(run_id)?,
+        source_id: parsed.source_id,
+        parse_id: parsed.parse_id,
+        merchant: output.merchant.clone(),
+        order_identifier: output.order_identifier.clone(),
+        purchase_date: output.purchase_date.clone(),
+        currency: output.currency.clone(),
+        line_items: lines,
+        review_head: None,
+    };
+    order
+        .validate_against(parsed)
+        .map_err(|_| PlatformError::InvalidInput("receipt_intelligence_order"))?;
+    Ok(order)
+}
+
+pub(crate) fn persist_parse(
     connection: &Connection,
     parsed: &ParsedReceiptEvidenceV1,
     now_ms: i64,
@@ -2798,7 +3172,10 @@ fn load_order_by_run(
     load_order(connection, &order_id)
 }
 
-fn load_order(connection: &Connection, order_id: &str) -> PlatformResult<ReceiptOrderEvidenceV1> {
+pub(crate) fn load_order(
+    connection: &Connection,
+    order_id: &str,
+) -> PlatformResult<ReceiptOrderEvidenceV1> {
     let (run_id, parse_id, source_id, output_json) = connection
         .query_row(
             "SELECT orders.run_id, runs.parse_id, parses.source_id, runs.output_json
@@ -3473,7 +3850,7 @@ fn unix_now_ms() -> PlatformResult<i64> {
     i64::try_from(duration.as_millis()).map_err(|_| PlatformError::Corrupt("system_clock"))
 }
 
-fn receipt_port_error(error: PlatformError) -> ReceiptPortError {
+pub(crate) fn receipt_port_error(error: PlatformError) -> ReceiptPortError {
     let kind = match error {
         PlatformError::Conflict("snapshot_expired") => ReceiptPortErrorKind::SnapshotExpired,
         PlatformError::Conflict(_) | PlatformError::LeaseLost => ReceiptPortErrorKind::Conflict,

@@ -31,7 +31,7 @@ npm-clean-install:
 	$(PYTHON) tools/release_supply_chain.py check-installed
 
 test: check harness-test
-	cargo test --workspace
+	cargo test --workspace -- --test-threads=1
 	npm --workspace @wardrobe/desktop-ui test -- --run
 	$(MAKE) phase-evidence
 

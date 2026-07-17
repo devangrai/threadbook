@@ -127,6 +127,15 @@ pub trait GmailGateway {
         page_size: usize,
     ) -> impl Future<Output = Result<MessagePage, GatewayError>> + Send;
 
+    fn list_search_messages(
+        &mut self,
+        _query: &str,
+        _page_token: Option<&str>,
+        _page_size: usize,
+    ) -> impl Future<Output = Result<MessagePage, GatewayError>> + Send {
+        async { Err(GatewayError::MalformedRequest) }
+    }
+
     fn get_message(
         &mut self,
         message_id: &str,
@@ -284,6 +293,126 @@ pub struct SyncCommit {
 
 pub struct GmailHistoryCoordinator {
     limits: SyncLimits,
+}
+
+pub struct GmailSearchCoordinator {
+    limits: SyncLimits,
+}
+
+impl GmailSearchCoordinator {
+    pub fn new(limits: SyncLimits) -> Result<Self, SyncError> {
+        Ok(Self {
+            limits: limits.validate()?,
+        })
+    }
+
+    pub async fn sync<G, S>(
+        &self,
+        gateway: &mut G,
+        store: &S,
+        key: &SyncKey,
+        query: &str,
+    ) -> Result<(SyncBatch, SyncCommit), SyncError>
+    where
+        G: GmailGateway + Send,
+        S: GmailSyncStore,
+    {
+        let batch = self.collect(gateway, store, key, query).await?;
+        let commit = store.commit(key, &batch)?;
+        Ok((batch, commit))
+    }
+
+    pub async fn collect<G, S>(
+        &self,
+        gateway: &mut G,
+        store: &S,
+        key: &SyncKey,
+        query: &str,
+    ) -> Result<SyncBatch, SyncError>
+    where
+        G: GmailGateway + Send,
+        S: GmailSyncStore,
+    {
+        validate_key(key)?;
+        validate_search_query(query)?;
+        let expected_checkpoint = store.checkpoint(key)?;
+        let deadline = Instant::now() + self.limits.operation_timeout;
+        let mut budget = Budget::default();
+        let anchor = HistoryId::parse(
+            self.call(deadline, &mut budget, gateway.profile_history_id())
+                .await
+                .map_err(map_gateway)?,
+        )?;
+        let mut listed = BTreeSet::new();
+        let mut token = None;
+        let mut seen_tokens = HashSet::new();
+        let mut pages = 0;
+        loop {
+            let page = self
+                .call(
+                    deadline,
+                    &mut budget,
+                    gateway.list_search_messages(query, token.as_deref(), self.limits.page_size),
+                )
+                .await
+                .map_err(map_gateway)?;
+            pages += 1;
+            for message_id in page.message_ids {
+                validate_provider_value(&message_id)?;
+                listed.insert(message_id);
+                if listed.len() > self.limits.max_unique_messages {
+                    return Err(SyncError::ScopeTooLarge);
+                }
+            }
+            token = validate_next_token(page.next_page_token, &mut seen_tokens)?;
+            if token.is_none() {
+                break;
+            }
+            if pages >= self.limits.max_pages {
+                return Err(SyncError::ScopeTooLarge);
+            }
+        }
+
+        let mut effects = Vec::with_capacity(listed.len());
+        for message_id in &listed {
+            let message = self
+                .call(deadline, &mut budget, gateway.get_message(message_id))
+                .await
+                .map_err(map_gateway)?;
+            validate_message(&message, message_id)?;
+            budget.consume_raw(message.raw.len(), self.limits)?;
+            effects.push(RevisionEffect::Available {
+                message_id: message_id.clone(),
+                revision: HistoryId::parse(message.history_id)?,
+                raw: message.raw,
+            });
+        }
+        Ok(SyncBatch {
+            mode: SyncMode::Reconciled,
+            expected_checkpoint,
+            next_checkpoint: anchor,
+            discovered_message_ids: listed.into_iter().collect(),
+            effects,
+            pages,
+            gateway_calls: budget.calls,
+            raw_bytes: budget.raw_bytes,
+        })
+    }
+
+    async fn call<T>(
+        &self,
+        deadline: Instant,
+        budget: &mut Budget,
+        future: impl Future<Output = Result<T, GatewayError>>,
+    ) -> Result<T, GatewayError> {
+        if budget.calls >= self.limits.max_gateway_calls {
+            return Err(GatewayError::Cancelled);
+        }
+        budget.calls += 1;
+        timeout_at(deadline, future)
+            .await
+            .map_err(|_| GatewayError::Timeout)?
+    }
 }
 
 impl GmailHistoryCoordinator {
@@ -725,6 +854,13 @@ fn validate_provider_value(value: &str) -> Result<(), SyncError> {
     Ok(())
 }
 
+fn validate_search_query(value: &str) -> Result<(), SyncError> {
+    if value.is_empty() || value.len() > 2048 || value.chars().any(char::is_control) {
+        return Err(SyncError::InvalidConfiguration);
+    }
+    Ok(())
+}
+
 fn validate_message(message: &RawGmailMessage, requested_id: &str) -> Result<(), SyncError> {
     if message.id != requested_id {
         return Err(SyncError::MalformedResponse);
@@ -773,7 +909,11 @@ fn map_gateway(error: GatewayError) -> SyncError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{Database, PrivateAppPaths};
+    use rusqlite::params;
     use std::collections::VecDeque;
+    use std::fs;
+    use std::path::Path;
     use std::sync::Mutex;
 
     #[derive(Default)]
@@ -781,6 +921,7 @@ mod tests {
         checkpoint: Option<String>,
         known: Vec<String>,
         batch: Mutex<Option<SyncBatch>>,
+        commit_error: Option<SyncError>,
     }
 
     impl GmailSyncStore for Store {
@@ -793,6 +934,9 @@ mod tests {
         }
 
         fn commit(&self, _key: &SyncKey, batch: &SyncBatch) -> Result<SyncCommit, SyncError> {
+            if let Some(error) = self.commit_error {
+                return Err(error);
+            }
             *self.batch.lock().unwrap() = Some(batch.clone());
             Ok(SyncCommit::default())
         }
@@ -801,6 +945,8 @@ mod tests {
     enum Step {
         Profile(&'static str),
         Messages(MessagePage),
+        SearchMessages(MessagePage),
+        SearchMessagesAfter(Duration, MessagePage),
         History(Result<HistoryPage, GatewayError>),
         Message(&'static str, Result<RawGmailMessage, GatewayError>),
     }
@@ -808,6 +954,9 @@ mod tests {
     struct Gateway {
         steps: VecDeque<Step>,
         gets: Vec<String>,
+        searches: Vec<(String, Option<String>, usize)>,
+        profile_calls: usize,
+        history_calls: usize,
     }
 
     impl Gateway {
@@ -815,6 +964,9 @@ mod tests {
             Self {
                 steps: steps.into_iter().collect(),
                 gets: Vec::new(),
+                searches: Vec::new(),
+                profile_calls: 0,
+                history_calls: 0,
             }
         }
 
@@ -825,6 +977,7 @@ mod tests {
 
     impl GmailGateway for Gateway {
         async fn profile_history_id(&mut self) -> Result<String, GatewayError> {
+            self.profile_calls += 1;
             match self.next() {
                 Step::Profile(value) => Ok(value.to_owned()),
                 _ => panic!("unexpected profile call"),
@@ -854,6 +1007,24 @@ mod tests {
             }
         }
 
+        async fn list_search_messages(
+            &mut self,
+            query: &str,
+            page_token: Option<&str>,
+            page_size: usize,
+        ) -> Result<MessagePage, GatewayError> {
+            self.searches
+                .push((query.to_owned(), page_token.map(str::to_owned), page_size));
+            match self.next() {
+                Step::SearchMessages(page) => Ok(page),
+                Step::SearchMessagesAfter(delay, page) => {
+                    tokio::time::sleep(delay).await;
+                    Ok(page)
+                }
+                _ => panic!("unexpected search list call"),
+            }
+        }
+
         async fn list_history(
             &mut self,
             _start_history_id: &str,
@@ -861,6 +1032,7 @@ mod tests {
             _page_token: Option<&str>,
             _page_size: usize,
         ) -> Result<HistoryPage, GatewayError> {
+            self.history_calls += 1;
             match self.next() {
                 Step::History(result) => result,
                 _ => panic!("unexpected history call"),
@@ -895,6 +1067,132 @@ mod tests {
             label_ids: labels.iter().map(|value| (*value).to_owned()).collect(),
             raw: b"Subject: receipt\r\n\r\nbody".to_vec(),
         }
+    }
+
+    fn raw_with_size(id: &str, history: &str, size: usize) -> RawGmailMessage {
+        RawGmailMessage {
+            id: id.into(),
+            history_id: history.into(),
+            label_ids: Vec::new(),
+            raw: vec![b'x'; size],
+        }
+    }
+
+    fn real_search_database(
+        query: &str,
+    ) -> (tempfile::TempDir, PrivateAppPaths, Database, SyncKey) {
+        let temporary = tempfile::tempdir().unwrap();
+        let paths = PrivateAppPaths::create(temporary.path().join("app")).unwrap();
+        let database = Database::open(&paths, 1).unwrap();
+        let locator = "gmail-search-integration-locator";
+        database
+            .connection()
+            .unwrap()
+            .execute(
+                "INSERT INTO credential_references(
+                    locator, credential_id, save_request_id, provider,
+                    display_label, status, created_at_ms, updated_at_ms
+                 ) VALUES (?1, ?2, ?3, 'gmail', 'Gmail', 'active', 1, 1)",
+                params![
+                    locator,
+                    "81111111-1111-4111-8111-111111111111",
+                    "82222222-2222-4222-8222-222222222222"
+                ],
+            )
+            .unwrap();
+        let key = SyncKey {
+            account_key: "a".repeat(64),
+            scope_id: "83333333-3333-4333-8333-333333333333".into(),
+            label_id: "SEARCH".into(),
+        };
+        database
+            .initialize_gmail_scope_v2(
+                &key.account_key,
+                locator,
+                &key.scope_id,
+                &"b".repeat(64),
+                &key.label_id,
+                "search",
+                query,
+                "bounded-mime-v1",
+                "gmail-materialization-v1",
+                2,
+            )
+            .unwrap();
+        (temporary, paths, database, key)
+    }
+
+    #[derive(Debug, Eq, PartialEq)]
+    struct PublicationSnapshot {
+        checkpoint: Option<String>,
+        evidence_generation: i64,
+        publication_rows: i64,
+        blob_files: Vec<(String, u64)>,
+        staging_files: Vec<(String, u64)>,
+    }
+
+    fn publication_snapshot(
+        database: &Database,
+        paths: &PrivateAppPaths,
+        key: &SyncKey,
+    ) -> PublicationSnapshot {
+        let connection = database.connection().unwrap();
+        let publication_rows = connection
+            .query_row(
+                "SELECT
+                    (SELECT COUNT(*) FROM gmail_provider_sources)
+                  + (SELECT COUNT(*) FROM gmail_scope_sources)
+                  + (SELECT COUNT(*) FROM gmail_source_revisions)
+                  + (SELECT COUNT(*) FROM gmail_scope_availability_observations)
+                  + (SELECT COUNT(*) FROM gmail_revision_materializations)
+                  + (SELECT COUNT(*) FROM gmail_source_heads)
+                  + (SELECT COUNT(*) FROM local_sources)
+                  + (SELECT COUNT(*) FROM source_provenance)
+                  + (SELECT COUNT(*) FROM mime_parts)
+                  + (SELECT COUNT(*) FROM evidence)
+                  + (SELECT COUNT(*) FROM blobs)",
+                [],
+                |row| row.get::<_, i64>(0),
+            )
+            .unwrap();
+        PublicationSnapshot {
+            checkpoint: database.checkpoint(key).unwrap(),
+            evidence_generation: connection
+                .query_row(
+                    "SELECT evidence_generation FROM revision_state WHERE singleton = 1",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap(),
+            publication_rows,
+            blob_files: files_under(&paths.blobs),
+            staging_files: files_under(&paths.staging),
+        }
+    }
+
+    fn files_under(root: &Path) -> Vec<(String, u64)> {
+        fn visit(root: &Path, current: &Path, files: &mut Vec<(String, u64)>) {
+            for entry in fs::read_dir(current).unwrap() {
+                let entry = entry.unwrap();
+                let path = entry.path();
+                if entry.file_type().unwrap().is_dir() {
+                    visit(root, &path, files);
+                } else {
+                    files.push((
+                        path.strip_prefix(root)
+                            .unwrap()
+                            .to_string_lossy()
+                            .into_owned(),
+                        entry.metadata().unwrap().len(),
+                    ));
+                }
+            }
+        }
+
+        let mut files = Vec::new();
+        visit(root, root, &mut files);
+        files.sort();
+        files
     }
 
     #[tokio::test]
@@ -984,6 +1282,479 @@ mod tests {
         assert_eq!(batch.discovered_message_ids, ["known", "listed"]);
         assert_eq!(batch.effects[0].revision().as_str(), "21");
         assert_eq!(batch.effects[1].revision().as_str(), "20");
+    }
+
+    #[tokio::test]
+    async fn search_exhausts_pages_deduplicates_and_ignores_known_unlisted_sources() {
+        let store = Store {
+            checkpoint: Some("7".into()),
+            known: vec!["old-no-longer-matching".into()],
+            ..Store::default()
+        };
+        let query = "newer_than:3m {\"order confirmed\" \"thanks for your order\"}";
+        let mut gateway = Gateway::new([
+            Step::Profile("20"),
+            Step::SearchMessages(MessagePage {
+                message_ids: vec!["m2".into(), "m1".into()],
+                next_page_token: Some("page-2".into()),
+            }),
+            Step::SearchMessages(MessagePage {
+                message_ids: vec!["m1".into(), "m3".into()],
+                next_page_token: None,
+            }),
+            Step::Message("m1", Ok(raw("m1", "10", &[]))),
+            Step::Message("m2", Ok(raw("m2", "11", &[]))),
+            Step::Message("m3", Ok(raw("m3", "12", &[]))),
+        ]);
+
+        let mut exact_limits = limits();
+        exact_limits.max_pages = 2;
+        exact_limits.max_unique_messages = 3;
+        let coordinator = GmailSearchCoordinator::new(exact_limits).unwrap();
+        let batch = coordinator
+            .collect(&mut gateway, &store, &key(), query)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            gateway.searches,
+            [
+                (query.to_owned(), None, 2),
+                (query.to_owned(), Some("page-2".into()), 2),
+            ]
+        );
+        assert_eq!(gateway.gets, ["m1", "m2", "m3"]);
+        assert_eq!(gateway.profile_calls, 1);
+        assert_eq!(gateway.history_calls, 0);
+        assert_eq!(batch.discovered_message_ids, ["m1", "m2", "m3"]);
+        assert_eq!(batch.effects.len(), 3);
+        assert_eq!(batch.expected_checkpoint.as_deref(), Some("7"));
+        assert_eq!(batch.next_checkpoint.as_str(), "20");
+        assert!(batch.effects.iter().all(|effect| {
+            matches!(effect, RevisionEffect::Available { message_id, revision, .. }
+            if revision.as_str() == match message_id.as_str() {
+                "m1" => "10",
+                "m2" => "11",
+                "m3" => "12",
+                _ => unreachable!(),
+            })
+        }));
+    }
+
+    #[tokio::test]
+    async fn search_pagination_and_repeated_revisions_publish_once_to_real_repository() {
+        let query = "newer_than:3m subject:order";
+        let (_temporary, paths, database, key) = real_search_database(query);
+        let mut exact_limits = limits();
+        exact_limits.max_pages = 2;
+        exact_limits.max_unique_messages = 3;
+        let coordinator = GmailSearchCoordinator::new(exact_limits).unwrap();
+        let mut first_gateway = Gateway::new([
+            Step::Profile("20"),
+            Step::SearchMessages(MessagePage {
+                message_ids: vec!["m2".into(), "m1".into()],
+                next_page_token: Some("page-2".into()),
+            }),
+            Step::SearchMessages(MessagePage {
+                message_ids: vec!["m1".into(), "m3".into()],
+                next_page_token: None,
+            }),
+            Step::Message("m1", Ok(raw("m1", "10", &[]))),
+            Step::Message("m2", Ok(raw("m2", "11", &[]))),
+            Step::Message("m3", Ok(raw("m3", "12", &[]))),
+        ]);
+
+        let (_, first_commit) = coordinator
+            .sync(&mut first_gateway, &database, &key, query)
+            .await
+            .unwrap();
+        assert_eq!(first_gateway.gets, ["m1", "m2", "m3"]);
+        assert_eq!(first_commit.sources_inserted, 3);
+        assert_eq!(first_commit.revisions_inserted, 3);
+        assert_eq!(first_commit.revisions_replayed, 0);
+        assert_eq!(database.checkpoint(&key).unwrap().as_deref(), Some("20"));
+        let first_generation = first_commit.evidence_generation;
+
+        let mut repeated_gateway = Gateway::new([
+            Step::Profile("21"),
+            Step::SearchMessages(MessagePage {
+                message_ids: vec!["m3".into(), "m2".into(), "m1".into(), "m2".into()],
+                next_page_token: None,
+            }),
+            Step::Message("m1", Ok(raw("m1", "10", &[]))),
+            Step::Message("m2", Ok(raw("m2", "11", &[]))),
+            Step::Message("m3", Ok(raw("m3", "12", &[]))),
+        ]);
+        let (_, repeated_commit) = coordinator
+            .sync(&mut repeated_gateway, &database, &key, query)
+            .await
+            .unwrap();
+
+        assert_eq!(repeated_gateway.gets, ["m1", "m2", "m3"]);
+        assert_eq!(repeated_commit.sources_inserted, 0);
+        assert_eq!(repeated_commit.revisions_inserted, 0);
+        assert_eq!(repeated_commit.revisions_replayed, 3);
+        assert_eq!(repeated_commit.evidence_generation, first_generation);
+        assert_eq!(database.checkpoint(&key).unwrap().as_deref(), Some("21"));
+        let connection = database.connection().unwrap();
+        for (table, expected) in [
+            ("gmail_provider_sources", 3_i64),
+            ("gmail_scope_sources", 3),
+            ("gmail_source_revisions", 3),
+            ("gmail_revision_materializations", 3),
+            ("gmail_source_heads", 3),
+        ] {
+            assert_eq!(
+                connection
+                    .query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| row
+                        .get::<_, i64>(0),)
+                    .unwrap(),
+                expected,
+                "{table}"
+            );
+        }
+        assert!(publication_snapshot(&database, &paths, &key)
+            .staging_files
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn search_limit_and_raw_fetch_failures_preserve_real_repository_atomically() {
+        let query = "subject:order";
+        let (_temporary, paths, database, key) = real_search_database(query);
+        let coordinator = GmailSearchCoordinator::new(limits()).unwrap();
+        let mut baseline_gateway = Gateway::new([
+            Step::Profile("10"),
+            Step::SearchMessages(MessagePage {
+                message_ids: vec!["baseline".into()],
+                next_page_token: None,
+            }),
+            Step::Message("baseline", Ok(raw("baseline", "8", &[]))),
+        ]);
+        coordinator
+            .sync(&mut baseline_gateway, &database, &key, query)
+            .await
+            .unwrap();
+        let baseline = publication_snapshot(&database, &paths, &key);
+
+        let mut one_message = limits();
+        one_message.max_unique_messages = 1;
+        let mut over_limit_gateway = Gateway::new([
+            Step::Profile("11"),
+            Step::SearchMessages(MessagePage {
+                message_ids: vec!["m1".into(), "m2".into()],
+                next_page_token: None,
+            }),
+        ]);
+        assert_eq!(
+            GmailSearchCoordinator::new(one_message)
+                .unwrap()
+                .sync(&mut over_limit_gateway, &database, &key, query)
+                .await,
+            Err(SyncError::ScopeTooLarge)
+        );
+        assert_eq!(publication_snapshot(&database, &paths, &key), baseline);
+
+        let mut raw_failure_gateway = Gateway::new([
+            Step::Profile("11"),
+            Step::SearchMessages(MessagePage {
+                message_ids: vec!["m1".into(), "m2".into()],
+                next_page_token: None,
+            }),
+            Step::Message("m1", Ok(raw("m1", "9", &[]))),
+            Step::Message("m2", Err(GatewayError::Transport)),
+        ]);
+        assert_eq!(
+            coordinator
+                .sync(&mut raw_failure_gateway, &database, &key, query)
+                .await,
+            Err(SyncError::Transport)
+        );
+        assert_eq!(publication_snapshot(&database, &paths, &key), baseline);
+
+        let mut retry_gateway = Gateway::new([
+            Step::Profile("11"),
+            Step::SearchMessages(MessagePage {
+                message_ids: vec!["m1".into(), "m2".into()],
+                next_page_token: None,
+            }),
+            Step::Message("m1", Ok(raw("m1", "9", &[]))),
+            Step::Message("m2", Ok(raw("m2", "10", &[]))),
+        ]);
+        coordinator
+            .sync(&mut retry_gateway, &database, &key, query)
+            .await
+            .unwrap();
+        assert_eq!(database.checkpoint(&key).unwrap().as_deref(), Some("11"));
+        assert_ne!(publication_snapshot(&database, &paths, &key), baseline);
+    }
+
+    #[tokio::test]
+    async fn search_boundaries_and_late_raw_failure_never_commit() {
+        let mut one_message = limits();
+        one_message.max_unique_messages = 1;
+        let store = Store::default();
+        let mut over_limit = Gateway::new([
+            Step::Profile("20"),
+            Step::SearchMessages(MessagePage {
+                message_ids: vec!["m1".into(), "m2".into()],
+                next_page_token: None,
+            }),
+        ]);
+        let coordinator = GmailSearchCoordinator::new(one_message).unwrap();
+        assert_eq!(
+            coordinator
+                .sync(&mut over_limit, &store, &key(), "subject:order")
+                .await,
+            Err(SyncError::ScopeTooLarge)
+        );
+        assert!(store.batch.lock().unwrap().is_none());
+        assert!(over_limit.gets.is_empty());
+
+        let store = Store::default();
+        let mut raw_failure = Gateway::new([
+            Step::Profile("20"),
+            Step::SearchMessages(MessagePage {
+                message_ids: vec!["m1".into(), "m2".into()],
+                next_page_token: None,
+            }),
+            Step::Message("m1", Ok(raw("m1", "10", &[]))),
+            Step::Message("m2", Err(GatewayError::Transport)),
+        ]);
+        let coordinator = GmailSearchCoordinator::new(limits()).unwrap();
+        assert_eq!(
+            coordinator
+                .sync(&mut raw_failure, &store, &key(), "subject:order")
+                .await,
+            Err(SyncError::Transport)
+        );
+        assert_eq!(raw_failure.gets, ["m1", "m2"]);
+        assert!(store.batch.lock().unwrap().is_none());
+
+        let store = Store::default();
+        let mut one_page = limits();
+        one_page.max_pages = 1;
+        let mut remaining_token = Gateway::new([
+            Step::Profile("20"),
+            Step::SearchMessages(MessagePage {
+                message_ids: vec!["m1".into()],
+                next_page_token: Some("still-more".into()),
+            }),
+        ]);
+        let coordinator = GmailSearchCoordinator::new(one_page).unwrap();
+        assert_eq!(
+            coordinator
+                .sync(&mut remaining_token, &store, &key(), "subject:order")
+                .await,
+            Err(SyncError::ScopeTooLarge)
+        );
+        assert!(store.batch.lock().unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn search_runs_a_complete_scan_every_time_and_retains_unlisted_known_messages() {
+        let store = Store {
+            checkpoint: Some("7".into()),
+            known: vec!["m1".into()],
+            ..Store::default()
+        };
+        let query = "  from:orders@example.com  subject:\"Order ready\"  ";
+        let mut gateway = Gateway::new([
+            Step::Profile("20"),
+            Step::SearchMessages(MessagePage {
+                message_ids: vec!["m1".into()],
+                next_page_token: None,
+            }),
+            Step::Message("m1", Ok(raw("m1", "00011", &[]))),
+            Step::Profile("21"),
+            Step::SearchMessages(MessagePage {
+                message_ids: Vec::new(),
+                next_page_token: None,
+            }),
+        ]);
+        let coordinator = GmailSearchCoordinator::new(limits()).unwrap();
+
+        let first = coordinator
+            .collect(&mut gateway, &store, &key(), query)
+            .await
+            .unwrap();
+        let second = coordinator
+            .collect(&mut gateway, &store, &key(), query)
+            .await
+            .unwrap();
+
+        assert_eq!(gateway.profile_calls, 2);
+        assert_eq!(gateway.history_calls, 0);
+        assert_eq!(
+            gateway.searches,
+            [(query.to_owned(), None, 2), (query.to_owned(), None, 2),]
+        );
+        assert_eq!(gateway.gets, ["m1"]);
+        assert_eq!(first.effects[0].revision().as_str(), "11");
+        assert!(matches!(
+            &first.effects[0],
+            RevisionEffect::Available { message_id, .. } if message_id == "m1"
+        ));
+        assert!(second.discovered_message_ids.is_empty());
+        assert!(second.effects.is_empty());
+        assert_eq!(second.next_checkpoint.as_str(), "21");
+    }
+
+    #[tokio::test]
+    async fn search_accepts_exact_byte_and_call_limits_and_rejects_one_over_atomically() {
+        let query = "subject:order";
+        let mut exact_limits = limits();
+        exact_limits.max_gateway_calls = 3;
+        exact_limits.max_total_raw_bytes = 4;
+        let exact_store = Store::default();
+        let mut exact_gateway = Gateway::new([
+            Step::Profile("20"),
+            Step::SearchMessages(MessagePage {
+                message_ids: vec!["m1".into()],
+                next_page_token: None,
+            }),
+            Step::Message("m1", Ok(raw_with_size("m1", "11", 4))),
+        ]);
+        let exact = GmailSearchCoordinator::new(exact_limits)
+            .unwrap()
+            .sync(&mut exact_gateway, &exact_store, &key(), query)
+            .await
+            .unwrap()
+            .0;
+        assert_eq!(exact.gateway_calls, 3);
+        assert_eq!(exact.raw_bytes, 4);
+        assert!(exact_store.batch.lock().unwrap().is_some());
+
+        let mut byte_limits = exact_limits;
+        byte_limits.max_total_raw_bytes = 3;
+        let byte_store = Store::default();
+        let mut byte_gateway = Gateway::new([
+            Step::Profile("20"),
+            Step::SearchMessages(MessagePage {
+                message_ids: vec!["m1".into()],
+                next_page_token: None,
+            }),
+            Step::Message("m1", Ok(raw_with_size("m1", "11", 4))),
+        ]);
+        assert_eq!(
+            GmailSearchCoordinator::new(byte_limits)
+                .unwrap()
+                .sync(&mut byte_gateway, &byte_store, &key(), query)
+                .await,
+            Err(SyncError::ScopeTooLarge)
+        );
+        assert!(byte_store.batch.lock().unwrap().is_none());
+
+        let mut call_limits = exact_limits;
+        call_limits.max_gateway_calls = 2;
+        let call_store = Store::default();
+        let mut call_gateway = Gateway::new([
+            Step::Profile("20"),
+            Step::SearchMessages(MessagePage {
+                message_ids: vec!["m1".into()],
+                next_page_token: None,
+            }),
+            Step::Message("m1", Ok(raw_with_size("m1", "11", 4))),
+        ]);
+        assert_eq!(
+            GmailSearchCoordinator::new(call_limits)
+                .unwrap()
+                .sync(&mut call_gateway, &call_store, &key(), query)
+                .await,
+            Err(SyncError::Cancelled)
+        );
+        assert!(call_gateway.gets.is_empty());
+        assert!(call_store.batch.lock().unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn search_rejects_token_cycles_timeouts_and_vanished_listed_messages_atomically() {
+        let query = "subject:order";
+        let store = Store::default();
+        let mut token_cycle = Gateway::new([
+            Step::Profile("20"),
+            Step::SearchMessages(MessagePage {
+                message_ids: vec!["m1".into()],
+                next_page_token: Some("same-token".into()),
+            }),
+            Step::SearchMessages(MessagePage {
+                message_ids: vec!["m2".into()],
+                next_page_token: Some("same-token".into()),
+            }),
+        ]);
+        assert_eq!(
+            GmailSearchCoordinator::new(limits())
+                .unwrap()
+                .sync(&mut token_cycle, &store, &key(), query)
+                .await,
+            Err(SyncError::MalformedResponse)
+        );
+        assert!(token_cycle.gets.is_empty());
+        assert!(store.batch.lock().unwrap().is_none());
+
+        let mut timeout_limits = limits();
+        timeout_limits.operation_timeout = Duration::from_millis(10);
+        let timeout_store = Store::default();
+        let mut slow_gateway = Gateway::new([
+            Step::Profile("20"),
+            Step::SearchMessagesAfter(
+                Duration::from_millis(50),
+                MessagePage {
+                    message_ids: Vec::new(),
+                    next_page_token: None,
+                },
+            ),
+        ]);
+        assert_eq!(
+            GmailSearchCoordinator::new(timeout_limits)
+                .unwrap()
+                .sync(&mut slow_gateway, &timeout_store, &key(), query)
+                .await,
+            Err(SyncError::Timeout)
+        );
+        assert!(timeout_store.batch.lock().unwrap().is_none());
+
+        let vanished_store = Store::default();
+        let mut vanished_gateway = Gateway::new([
+            Step::Profile("20"),
+            Step::SearchMessages(MessagePage {
+                message_ids: vec!["m1".into()],
+                next_page_token: None,
+            }),
+            Step::Message("m1", Err(GatewayError::MessageNotFound)),
+        ]);
+        assert_eq!(
+            GmailSearchCoordinator::new(limits())
+                .unwrap()
+                .sync(&mut vanished_gateway, &vanished_store, &key(), query)
+                .await,
+            Err(SyncError::MalformedResponse)
+        );
+        assert!(vanished_store.batch.lock().unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn search_persistence_failure_does_not_publish_a_batch() {
+        let store = Store {
+            commit_error: Some(SyncError::Store),
+            ..Store::default()
+        };
+        let mut gateway = Gateway::new([
+            Step::Profile("20"),
+            Step::SearchMessages(MessagePage {
+                message_ids: vec!["m1".into()],
+                next_page_token: None,
+            }),
+            Step::Message("m1", Ok(raw("m1", "11", &[]))),
+        ]);
+        assert_eq!(
+            GmailSearchCoordinator::new(limits())
+                .unwrap()
+                .sync(&mut gateway, &store, &key(), "subject:order")
+                .await,
+            Err(SyncError::Store)
+        );
+        assert!(store.batch.lock().unwrap().is_none());
     }
 
     #[test]

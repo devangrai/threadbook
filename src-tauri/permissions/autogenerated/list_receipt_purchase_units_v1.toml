@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-list-receipt-purchase-units-v1"
+description = "Enables the list_receipt_purchase_units_v1 command without any pre-configured scope."
+commands.allow = ["list_receipt_purchase_units_v1"]
+
+[[permission]]
+identifier = "deny-list-receipt-purchase-units-v1"
+description = "Denies the list_receipt_purchase_units_v1 command without any pre-configured scope."
+commands.deny = ["list_receipt_purchase_units_v1"]

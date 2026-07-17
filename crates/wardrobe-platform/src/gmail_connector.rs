@@ -2,9 +2,11 @@ use crate::gmail_http::{
     gmail_account_key, GoogleGmailGateway, GoogleHttpClient, GoogleHttpError,
     PendingPkceAuthorization, RevocationResult,
 };
-use crate::gmail_repository::GmailSyncCommandKind;
+use crate::gmail_repository::{GmailScopeInitialization, GmailSyncCommandKind};
+use crate::gmail_sync::{GmailSyncStore, SyncCommit};
 use crate::{
-    Database, GmailHistoryCoordinator, MacOsKeychain, SyncBatch, SyncError, SyncKey, SyncLimits,
+    Database, GmailHistoryCoordinator, GmailSearchCoordinator, MacOsKeychain, SyncBatch, SyncError,
+    SyncKey, SyncLimits,
 };
 use rusqlite::{params, OptionalExtension, TransactionBehavior};
 use serde::de::DeserializeOwned;
@@ -15,16 +17,137 @@ use uuid::Uuid;
 use wardrobe_core::{
     ConnectGmailV1Request, ConnectGmailV1Response, CredentialLocator, CredentialPort,
     DisconnectGmailV1Request, DisconnectGmailV1Response, GetGmailConnectorV1Request,
-    GetGmailConnectorV1Response, GmailConnectorLimitsV1, GmailConnectorPort,
-    GmailConnectorPortError, GmailConnectorPortErrorKind, GmailConnectorPortResult,
-    GmailConnectorSettingsV1, GmailConnectorStatusV1, GmailProviderProfileV1,
-    GmailRevocationOutcomeV1, ReplayStatusV1, RequestId, SaveGmailSettingsV1Request,
-    SaveGmailSettingsV1Response, SecretString, SyncGmailV1Request, SyncGmailV1Response,
+    GetGmailConnectorV1Response, GetGmailConnectorV2Request, GetGmailConnectorV2Response,
+    GmailConnectorLimitsV1, GmailConnectorPort, GmailConnectorPortError,
+    GmailConnectorPortErrorKind, GmailConnectorPortResult, GmailConnectorSettingsV1,
+    GmailConnectorSettingsV2, GmailConnectorStatusV1, GmailDiscoveryScopeV2,
+    GmailProviderProfileV1, GmailRevocationOutcomeV1, ReplayStatusV1, RequestId,
+    SaveGmailSettingsV1Request, SaveGmailSettingsV1Response, SaveGmailSettingsV2Request,
+    SaveGmailSettingsV2Response, SecretString, SyncGmailV1Request, SyncGmailV1Response,
     UserActionKeyV1, SCHEMA_VERSION_V1,
 };
 
 const PARSER_REVISION: &str = "bounded-mime-v1";
 const MATERIALIZATION_REVISION: &str = "gmail-materialization-v1";
+
+enum RequestReservation<T> {
+    New,
+    Pending,
+    Replayed(T),
+}
+
+struct GmailScopeCollection<'a> {
+    database: &'a Database,
+    initialization: &'a GmailScopeInitialization,
+}
+
+impl GmailScopeCollection<'_> {
+    fn exact_scope_exists(&self, key: &SyncKey) -> Result<bool, SyncError> {
+        if key.account_key != self.initialization.account_key
+            || key.scope_id != self.initialization.scope_id
+            || key.label_id != self.initialization.storage_scope_key
+        {
+            return Err(SyncError::InvalidConfiguration);
+        }
+        let stored = self
+            .database
+            .connection()
+            .map_err(|_| SyncError::Store)?
+            .query_row(
+                "SELECT scope.scope_id, scope.account_key,
+                        scope.scope_fingerprint, scope.label_id,
+                        scope.discovery_kind, scope.discovery_value,
+                        scope.parser_revision, scope.materialization_revision,
+                        scope.oauth_scope,
+                        account.credential_locator
+                 FROM gmail_scopes scope
+                 JOIN gmail_accounts account
+                   ON account.account_key = scope.account_key
+                 WHERE scope.scope_id = ?1
+                    OR (
+                        scope.account_key = ?2
+                        AND scope.scope_fingerprint = ?3
+                    )",
+                params![
+                    self.initialization.scope_id,
+                    self.initialization.account_key,
+                    self.initialization.scope_fingerprint
+                ],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?,
+                        row.get::<_, String>(5)?,
+                        row.get::<_, String>(6)?,
+                        row.get::<_, String>(7)?,
+                        row.get::<_, String>(8)?,
+                        row.get::<_, Option<String>>(9)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|_| SyncError::Store)?;
+        let Some(stored) = stored else {
+            return Ok(false);
+        };
+        if stored
+            == (
+                self.initialization.scope_id.clone(),
+                self.initialization.account_key.clone(),
+                self.initialization.scope_fingerprint.clone(),
+                self.initialization.storage_scope_key.clone(),
+                self.initialization.discovery_kind.clone(),
+                self.initialization.discovery_value.clone(),
+                self.initialization.parser_revision.clone(),
+                self.initialization.materialization_revision.clone(),
+                crate::GOOGLE_OAUTH_SCOPE.to_owned(),
+                Some(self.initialization.credential_locator.clone()),
+            )
+            || stored
+                == (
+                    self.initialization.scope_id.clone(),
+                    self.initialization.account_key.clone(),
+                    self.initialization.scope_fingerprint.clone(),
+                    self.initialization.storage_scope_key.clone(),
+                    self.initialization.discovery_kind.clone(),
+                    self.initialization.discovery_value.clone(),
+                    self.initialization.parser_revision.clone(),
+                    self.initialization.materialization_revision.clone(),
+                    crate::GOOGLE_OAUTH_SCOPE.to_owned(),
+                    None,
+                )
+        {
+            Ok(true)
+        } else {
+            Err(SyncError::InvalidConfiguration)
+        }
+    }
+}
+
+impl GmailSyncStore for GmailScopeCollection<'_> {
+    fn checkpoint(&self, key: &SyncKey) -> Result<Option<String>, SyncError> {
+        if self.exact_scope_exists(key)? {
+            self.database.checkpoint(key)
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn known_message_ids(&self, key: &SyncKey) -> Result<Vec<String>, SyncError> {
+        if self.exact_scope_exists(key)? {
+            self.database.known_message_ids(key)
+        } else {
+            Ok(Vec::new())
+        }
+    }
+
+    fn commit(&self, _key: &SyncKey, _batch: &SyncBatch) -> Result<SyncCommit, SyncError> {
+        Err(SyncError::InvalidConfiguration)
+    }
+}
 
 pub trait GmailCredentialStore: Clone + Send + Sync + 'static {
     fn put_refresh(
@@ -104,31 +227,114 @@ where
         }
     }
 
-    fn settings(&self) -> GmailConnectorPortResult<Option<GmailConnectorSettingsV1>> {
+    fn settings(&self) -> GmailConnectorPortResult<Option<GmailConnectorSettingsV2>> {
         self.database
             .connection()
             .map_err(|_| internal())?
             .query_row(
-                "SELECT oauth_client_id, label_name, page_size, max_pages,
+                "SELECT oauth_client_id, discovery_kind, discovery_value, page_size, max_pages,
                         max_unique_messages, max_total_raw_bytes
                  FROM gmail_connector_settings WHERE singleton = 1",
                 [],
                 |row| {
-                    Ok(GmailConnectorSettingsV1 {
+                    let discovery_kind = row.get::<_, String>(1)?;
+                    let discovery_value = row.get::<_, String>(2)?;
+                    let discovery_scope = match discovery_kind.as_str() {
+                        "search" => GmailDiscoveryScopeV2::Search {
+                            query: discovery_value,
+                        },
+                        "label" => GmailDiscoveryScopeV2::Label {
+                            label_name: discovery_value,
+                        },
+                        _ => return Err(rusqlite::Error::InvalidQuery),
+                    };
+                    Ok(GmailConnectorSettingsV2 {
                         provider_profile: GmailProviderProfileV1::Google,
                         oauth_client_id: row.get(0)?,
-                        label_name: row.get(1)?,
+                        discovery_scope,
                         limits: GmailConnectorLimitsV1 {
-                            page_size: row.get::<_, i64>(2)? as u16,
-                            max_pages: row.get::<_, i64>(3)? as u8,
-                            max_unique_messages: row.get::<_, i64>(4)? as u16,
-                            max_total_raw_bytes: row.get::<_, i64>(5)? as u64,
+                            page_size: row.get::<_, i64>(3)? as u16,
+                            max_pages: row.get::<_, i64>(4)? as u8,
+                            max_unique_messages: row.get::<_, i64>(5)? as u16,
+                            max_total_raw_bytes: row.get::<_, i64>(6)? as u64,
                         },
                     })
                 },
             )
             .optional()
             .map_err(|_| internal())
+    }
+
+    fn legacy_settings(&self) -> GmailConnectorPortResult<Option<GmailConnectorSettingsV1>> {
+        self.settings()?
+            .map(|settings| {
+                let GmailDiscoveryScopeV2::Label { label_name } = settings.discovery_scope else {
+                    return Err(invalid_state());
+                };
+                Ok(GmailConnectorSettingsV1 {
+                    provider_profile: settings.provider_profile,
+                    oauth_client_id: settings.oauth_client_id,
+                    label_name,
+                    limits: settings.limits,
+                })
+            })
+            .transpose()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn store_settings(
+        &self,
+        request_id: &str,
+        command: &str,
+        envelope: &str,
+        response_json: &str,
+        client_id: &str,
+        discovery_kind: &str,
+        discovery_value: &str,
+        limits: &GmailConnectorLimitsV1,
+    ) -> GmailConnectorPortResult<()> {
+        let now = now_ms()?;
+        let mut connection = self.database.connection().map_err(|_| internal())?;
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|_| internal())?;
+        transaction
+            .execute(
+                "INSERT INTO gmail_connector_settings(
+                    singleton, oauth_client_id, discovery_kind, discovery_value,
+                    page_size, max_pages, max_unique_messages,
+                    max_total_raw_bytes, updated_at_ms
+                 ) VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                 ON CONFLICT(singleton) DO UPDATE SET
+                    oauth_client_id = excluded.oauth_client_id,
+                    discovery_kind = excluded.discovery_kind,
+                    discovery_value = excluded.discovery_value,
+                    page_size = excluded.page_size,
+                    max_pages = excluded.max_pages,
+                    max_unique_messages = excluded.max_unique_messages,
+                    max_total_raw_bytes = excluded.max_total_raw_bytes,
+                    updated_at_ms = excluded.updated_at_ms",
+                params![
+                    client_id,
+                    discovery_kind,
+                    discovery_value,
+                    limits.page_size,
+                    limits.max_pages,
+                    limits.max_unique_messages,
+                    limits.max_total_raw_bytes as i64,
+                    now
+                ],
+            )
+            .map_err(|_| internal())?;
+        transaction
+            .execute(
+                "INSERT INTO command_receipts(
+                    request_id, command_name, envelope_hash, response_json, created_at_ms
+                 ) VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![request_id, command, envelope, response_json, now],
+            )
+            .map_err(|_| internal())?;
+        transaction.commit().map_err(|_| internal())
     }
 
     fn state(&self) -> GmailConnectorPortResult<(GmailConnectorStatusV1, UserActionKeyV1)> {
@@ -199,16 +405,31 @@ where
         })
     }
 
-    fn replay<T: DeserializeOwned>(
+    fn reserve_request<T: DeserializeOwned>(
         &self,
         request_id: &str,
         command: &str,
         envelope: &str,
-    ) -> GmailConnectorPortResult<Option<T>> {
-        let row = self
-            .database
-            .connection()
-            .map_err(|_| internal())?
+    ) -> GmailConnectorPortResult<RequestReservation<T>> {
+        let mut connection = self.database.connection().map_err(|_| internal())?;
+        let transaction = connection
+            .transaction_with_behavior(TransactionBehavior::Immediate)
+            .map_err(|_| internal())?;
+        let reservation = transaction
+            .query_row(
+                "SELECT command_name, envelope_hash
+                 FROM gmail_request_reservations WHERE request_id = ?1",
+                [request_id],
+                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
+            )
+            .optional()
+            .map_err(|_| internal())?;
+        if let Some((stored_command, stored_envelope)) = reservation.as_ref() {
+            if stored_command != command || stored_envelope != envelope {
+                return Err(conflict());
+            }
+        }
+        let receipt = transaction
             .query_row(
                 "SELECT command_name, envelope_hash, response_json
                  FROM command_receipts WHERE request_id = ?1",
@@ -223,17 +444,28 @@ where
             )
             .optional()
             .map_err(|_| internal())?;
-        match row {
-            None => Ok(None),
-            Some((stored_command, stored_envelope, json))
-                if stored_command == command && stored_envelope == envelope =>
-            {
-                serde_json::from_str(&json)
-                    .map(Some)
-                    .map_err(|_| data_integrity())
+        if let Some((stored_command, stored_envelope, json)) = receipt {
+            if stored_command != command || stored_envelope != envelope {
+                return Err(conflict());
             }
-            Some(_) => Err(conflict()),
+            let response = serde_json::from_str(&json).map_err(|_| data_integrity())?;
+            transaction.commit().map_err(|_| internal())?;
+            return Ok(RequestReservation::Replayed(response));
         }
+        if reservation.is_some() {
+            transaction.commit().map_err(|_| internal())?;
+            return Ok(RequestReservation::Pending);
+        }
+        transaction
+            .execute(
+                "INSERT INTO gmail_request_reservations(
+                    request_id, command_name, envelope_hash, created_at_ms
+                 ) VALUES (?1, ?2, ?3, ?4)",
+                params![request_id, command, envelope, now_ms()?],
+            )
+            .map_err(map_request_reservation_sql)?;
+        transaction.commit().map_err(|_| internal())?;
+        Ok(RequestReservation::New)
     }
 
     fn collect_sync_once(
@@ -241,8 +473,9 @@ where
         account_key: String,
         scope_id: String,
         label_id: String,
-        settings: &GmailConnectorSettingsV1,
+        settings: &GmailConnectorSettingsV2,
         access_token: SecretString,
+        initialization: Option<GmailScopeInitialization>,
     ) -> Result<SyncBatch, SyncError> {
         let limits = SyncLimits {
             page_size: settings.limits.page_size as usize,
@@ -257,15 +490,46 @@ where
         };
         let database = self.database.clone();
         let http = self.http.clone();
+        let discovery = settings.discovery_scope.clone();
         let key = SyncKey {
             account_key,
             scope_id,
             label_id: label_id.clone(),
         };
         run_sync_async(move || async move {
-            let mut gateway = GoogleGmailGateway::new(http, access_token, label_id);
-            let coordinator = GmailHistoryCoordinator::new(limits)?;
-            coordinator.collect(&mut gateway, &database, &key).await
+            match discovery {
+                GmailDiscoveryScopeV2::Label { .. } => {
+                    let mut gateway = GoogleGmailGateway::new(http, access_token, label_id);
+                    let coordinator = GmailHistoryCoordinator::new(limits)?;
+                    if let Some(initialization) = initialization.as_ref() {
+                        let store = GmailScopeCollection {
+                            database: &database,
+                            initialization,
+                        };
+                        coordinator.collect(&mut gateway, &store, &key).await
+                    } else {
+                        coordinator.collect(&mut gateway, &database, &key).await
+                    }
+                }
+                GmailDiscoveryScopeV2::Search { query } => {
+                    let mut gateway =
+                        GoogleGmailGateway::new_search(http, access_token, query.clone());
+                    let coordinator = GmailSearchCoordinator::new(limits)?;
+                    if let Some(initialization) = initialization.as_ref() {
+                        let store = GmailScopeCollection {
+                            database: &database,
+                            initialization,
+                        };
+                        coordinator
+                            .collect(&mut gateway, &store, &key, &query)
+                            .await
+                    } else {
+                        coordinator
+                            .collect(&mut gateway, &database, &key, &query)
+                            .await
+                    }
+                }
+            }
         })
     }
 
@@ -275,9 +539,10 @@ where
         account_key: String,
         scope_id: String,
         label_id: String,
-        settings: &GmailConnectorSettingsV1,
+        settings: &GmailConnectorSettingsV2,
         access_token: SecretString,
         locator: &CredentialLocator,
+        initialization: Option<GmailScopeInitialization>,
     ) -> GmailConnectorPortResult<SyncBatch> {
         match self.collect_sync_once(
             account_key.clone(),
@@ -285,6 +550,7 @@ where
             label_id.clone(),
             settings,
             access_token,
+            initialization.clone(),
         ) {
             Ok(batch) => Ok(batch),
             Err(SyncError::Authentication) => {
@@ -308,6 +574,7 @@ where
                     label_id,
                     settings,
                     refreshed.access_token,
+                    initialization,
                 )
                 .map_err(map_sync_error)
             }
@@ -454,6 +721,35 @@ where
             .map(|_| ())
     }
 
+    fn resume_reserved_disconnect(
+        &self,
+        request_id: &str,
+        envelope: &str,
+        completion: GmailDisconnectCompletion,
+    ) -> GmailConnectorPortResult<DisconnectGmailV1Response> {
+        let stage = self
+            .database
+            .connection()
+            .map_err(|_| internal())?
+            .query_row(
+                "SELECT stage
+                 FROM gmail_operations
+                 WHERE request_id = ?1
+                   AND command_name = 'disconnect_gmail_v1'
+                   AND request_envelope_sha256 = ?2",
+                params![request_id, envelope],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|_| internal())?;
+        match stage.as_deref() {
+            Some("revocation_pending" | "credential_delete_pending") => {
+                self.complete_disconnect(request_id, envelope, completion)
+            }
+            _ => Err(conflict()),
+        }
+    }
+
     fn complete_disconnect(
         &self,
         request_id: &str,
@@ -506,11 +802,15 @@ where
         let request_id = request.request_id.to_string();
         let command = "disconnect_gmail_v1";
         let envelope = envelope(request)?;
-        if let Some(mut replay) =
-            self.replay::<DisconnectGmailV1Response>(&request_id, command, &envelope)?
-        {
-            replay.replay_status = ReplayStatusV1::Replayed;
-            return Ok(replay);
+        match self.reserve_request::<DisconnectGmailV1Response>(&request_id, command, &envelope)? {
+            RequestReservation::Replayed(mut replay) => {
+                replay.replay_status = ReplayStatusV1::Replayed;
+                return Ok(replay);
+            }
+            RequestReservation::Pending => {
+                return self.resume_reserved_disconnect(&request_id, &envelope, completion);
+            }
+            RequestReservation::New => {}
         }
         let (account_key, _scope_id, _label_id, locator) = self.active()?;
         begin_disconnect(
@@ -537,7 +837,7 @@ where
         Ok(GetGmailConnectorV1Response {
             schema_version: SCHEMA_VERSION_V1,
             request_id: request.request_id,
-            settings: self.settings()?,
+            settings: self.legacy_settings()?,
             status,
             user_action,
         })
@@ -548,12 +848,11 @@ where
         request: &SaveGmailSettingsV1Request,
     ) -> GmailConnectorPortResult<SaveGmailSettingsV1Response> {
         let request_id = request.request_id.to_string();
+        let command = "save_gmail_settings_v1";
         let envelope = envelope(request)?;
-        if let Some(mut replay) = self.replay::<SaveGmailSettingsV1Response>(
-            &request_id,
-            "save_gmail_settings_v1",
-            &envelope,
-        )? {
+        if let RequestReservation::Replayed(mut replay) =
+            self.reserve_request::<SaveGmailSettingsV1Response>(&request_id, command, &envelope)?
+        {
             replay.replay_status = ReplayStatusV1::Replayed;
             return Ok(replay);
         }
@@ -562,7 +861,6 @@ where
         {
             return Err(invalid_state());
         }
-        let now = now_ms()?;
         let settings = GmailConnectorSettingsV1 {
             provider_profile: GmailProviderProfileV1::Google,
             oauth_client_id: request.client_id.clone(),
@@ -578,44 +876,80 @@ where
             replay_status: ReplayStatusV1::Created,
         };
         let json = serde_json::to_string(&response).map_err(|_| internal())?;
-        let mut connection = self.database.connection().map_err(|_| internal())?;
-        let transaction = connection
-            .transaction_with_behavior(TransactionBehavior::Immediate)
-            .map_err(|_| internal())?;
-        transaction
-            .execute(
-                "INSERT INTO gmail_connector_settings(
-                    singleton, oauth_client_id, label_name, page_size, max_pages,
-                    max_unique_messages, max_total_raw_bytes, updated_at_ms
-                 ) VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7)
-                 ON CONFLICT(singleton) DO UPDATE SET
-                    oauth_client_id = excluded.oauth_client_id,
-                    label_name = excluded.label_name,
-                    page_size = excluded.page_size,
-                    max_pages = excluded.max_pages,
-                    max_unique_messages = excluded.max_unique_messages,
-                    max_total_raw_bytes = excluded.max_total_raw_bytes,
-                    updated_at_ms = excluded.updated_at_ms",
-                params![
-                    settings.oauth_client_id,
-                    settings.label_name,
-                    settings.limits.page_size,
-                    settings.limits.max_pages,
-                    settings.limits.max_unique_messages,
-                    settings.limits.max_total_raw_bytes as i64,
-                    now
-                ],
-            )
-            .map_err(|_| internal())?;
-        transaction
-            .execute(
-                "INSERT INTO command_receipts(
-                    request_id, command_name, envelope_hash, response_json, created_at_ms
-                 ) VALUES (?1, 'save_gmail_settings_v1', ?2, ?3, ?4)",
-                params![request_id, envelope, json, now],
-            )
-            .map_err(|_| internal())?;
-        transaction.commit().map_err(|_| internal())?;
+        self.store_settings(
+            &request_id,
+            command,
+            &envelope,
+            &json,
+            &settings.oauth_client_id,
+            "label",
+            &settings.label_name,
+            &settings.limits,
+        )?;
+        Ok(response)
+    }
+
+    fn get_gmail_connector_v2(
+        &self,
+        request: &GetGmailConnectorV2Request,
+    ) -> GmailConnectorPortResult<GetGmailConnectorV2Response> {
+        let (status, user_action) = self.state()?;
+        Ok(GetGmailConnectorV2Response {
+            schema_version: 2,
+            request_id: request.request_id,
+            settings: self.settings()?,
+            status,
+            user_action,
+        })
+    }
+
+    fn save_gmail_settings_v2(
+        &self,
+        request: &SaveGmailSettingsV2Request,
+    ) -> GmailConnectorPortResult<SaveGmailSettingsV2Response> {
+        let request_id = request.request_id.to_string();
+        let command = "save_gmail_settings_v2";
+        let envelope = envelope(request)?;
+        if let RequestReservation::Replayed(mut replay) =
+            self.reserve_request::<SaveGmailSettingsV2Response>(&request_id, command, &envelope)?
+        {
+            replay.replay_status = ReplayStatusV1::Replayed;
+            return Ok(replay);
+        }
+        if self.state()?.0 != GmailConnectorStatusV1::Disconnected
+            && self.state()?.0 != GmailConnectorStatusV1::NotConfigured
+        {
+            return Err(invalid_state());
+        }
+        let settings = GmailConnectorSettingsV2 {
+            provider_profile: GmailProviderProfileV1::Google,
+            oauth_client_id: request.client_id.clone(),
+            discovery_scope: request.discovery_scope.clone(),
+            limits: request.limits.clone(),
+        };
+        let response = SaveGmailSettingsV2Response {
+            schema_version: 2,
+            request_id: request.request_id,
+            settings: settings.clone(),
+            status: GmailConnectorStatusV1::Disconnected,
+            user_action: UserActionKeyV1::ConnectGmail,
+            replay_status: ReplayStatusV1::Created,
+        };
+        let (kind, value) = match &settings.discovery_scope {
+            GmailDiscoveryScopeV2::Search { query } => ("search", query.as_str()),
+            GmailDiscoveryScopeV2::Label { label_name } => ("label", label_name.as_str()),
+        };
+        let json = serde_json::to_string(&response).map_err(|_| internal())?;
+        self.store_settings(
+            &request_id,
+            command,
+            &envelope,
+            &json,
+            &settings.oauth_client_id,
+            kind,
+            value,
+            &settings.limits,
+        )?;
         Ok(response)
     }
 
@@ -626,11 +960,13 @@ where
         let request_id = request.request_id.to_string();
         let command = "connect_gmail_v1";
         let envelope = envelope(request)?;
-        if let Some(mut replay) =
-            self.replay::<ConnectGmailV1Response>(&request_id, command, &envelope)?
-        {
-            replay.replay_status = ReplayStatusV1::Replayed;
-            return Ok(replay);
+        match self.reserve_request::<ConnectGmailV1Response>(&request_id, command, &envelope)? {
+            RequestReservation::Replayed(mut replay) => {
+                replay.replay_status = ReplayStatusV1::Replayed;
+                return Ok(replay);
+            }
+            RequestReservation::Pending => return Err(conflict()),
+            RequestReservation::New => {}
         }
         let settings = self.settings()?.ok_or_else(invalid_state)?;
         if self.state()?.0 != GmailConnectorStatusV1::Disconnected {
@@ -646,7 +982,7 @@ where
 
         let http = self.http.clone();
         let client_id = settings.oauth_client_id.clone();
-        let label_name = settings.label_name.clone();
+        let discovery_for_auth = settings.discovery_scope.clone();
         let authorized = run_async(move || async move {
             let pending = PendingPkceAuthorization::bind(&client_id, &http)
                 .await
@@ -662,11 +998,15 @@ where
                 .user_subject(&tokens.access_token)
                 .await
                 .map_err(map_http_error)?;
-            let label_id =
-                GoogleGmailGateway::resolve_label_id(&http, &tokens.access_token, &label_name)
-                    .await
-                    .map_err(map_http_error)?;
-            Ok((tokens, gmail_account_key(&subject), label_id))
+            let storage_scope_key = match discovery_for_auth {
+                GmailDiscoveryScopeV2::Label { label_name } => {
+                    GoogleGmailGateway::resolve_label_id(&http, &tokens.access_token, &label_name)
+                        .await
+                        .map_err(map_http_error)?
+                }
+                GmailDiscoveryScopeV2::Search { .. } => "SEARCH".to_owned(),
+            };
+            Ok((tokens, gmail_account_key(&subject), storage_scope_key))
         });
         let (tokens, account_key, label_id) = match authorized {
             Ok(value) => value,
@@ -700,23 +1040,28 @@ where
         }
         let result = (|| {
             activate_credential(&self.database, &locator)?;
-            let scope_fingerprint = scope_fingerprint(&label_id);
+            let (discovery_kind, discovery_value) = match &settings.discovery_scope {
+                GmailDiscoveryScopeV2::Search { query } => ("search", query.as_str()),
+                GmailDiscoveryScopeV2::Label { label_name } => ("label", label_name.as_str()),
+            };
+            let scope_fingerprint =
+                scope_fingerprint(&account_key, discovery_kind, discovery_value, &label_id);
             let scope_id = stable_uuid(
                 "gmail-scope",
                 &format!("{account_key}\0{scope_fingerprint}"),
             );
-            self.database
-                .initialize_gmail_scope(
-                    &account_key,
-                    locator.expose_locator(),
-                    &scope_id,
-                    &scope_fingerprint,
-                    &label_id,
-                    PARSER_REVISION,
-                    MATERIALIZATION_REVISION,
-                    now_ms()?,
-                )
-                .map_err(|_| data_integrity())?;
+            let initialization = GmailScopeInitialization {
+                account_key: account_key.clone(),
+                credential_locator: locator.expose_locator().to_owned(),
+                scope_id: scope_id.clone(),
+                scope_fingerprint,
+                storage_scope_key: label_id.clone(),
+                discovery_kind: discovery_kind.to_owned(),
+                discovery_value: discovery_value.to_owned(),
+                parser_revision: PARSER_REVISION.to_owned(),
+                materialization_revision: MATERIALIZATION_REVISION.to_owned(),
+                created_at_ms: now_ms()?,
+            };
             mark_operation_syncing(&self.database, &request_id)?;
             let batch = self.collect_sync_with_auth_retry(
                 account_key.clone(),
@@ -725,20 +1070,14 @@ where
                 &settings,
                 tokens.access_token,
                 &locator,
+                Some(initialization.clone()),
             )?;
-            let key = SyncKey {
-                account_key: account_key.clone(),
-                scope_id: scope_id.clone(),
-                label_id,
-            };
-            let committed = self.database.commit_gmail_operation(
-                &key,
+            let committed = self.database.commit_new_gmail_operation(
+                &initialization,
                 &batch,
                 &request_id,
                 &envelope,
                 GmailSyncCommandKind::Connect,
-                &account_key,
-                &scope_id,
             )?;
             Ok(ConnectGmailV1Response {
                 schema_version: SCHEMA_VERSION_V1,
@@ -768,11 +1107,13 @@ where
         let request_id = request.request_id.to_string();
         let command = "sync_gmail_v1";
         let envelope = envelope(request)?;
-        if let Some(mut replay) =
-            self.replay::<SyncGmailV1Response>(&request_id, command, &envelope)?
-        {
-            replay.replay_status = ReplayStatusV1::Replayed;
-            return Ok(replay);
+        match self.reserve_request::<SyncGmailV1Response>(&request_id, command, &envelope)? {
+            RequestReservation::Replayed(mut replay) => {
+                replay.replay_status = ReplayStatusV1::Replayed;
+                return Ok(replay);
+            }
+            RequestReservation::Pending => return Err(conflict()),
+            RequestReservation::New => {}
         }
         let settings = self.settings()?.ok_or_else(invalid_state)?;
         let (account_key, scope_id, label_id, locator) = self.active()?;
@@ -799,6 +1140,7 @@ where
                 &settings,
                 refreshed.access_token,
                 &locator,
+                None,
             )?;
             let key = SyncKey {
                 account_key: account_key.clone(),
@@ -1466,11 +1808,44 @@ fn disconnect_identity(
         .map_err(|_| data_integrity())
 }
 
-fn scope_fingerprint(label_id: &str) -> String {
+fn scope_fingerprint(
+    account_key: &str,
+    discovery_kind: &str,
+    discovery_value: &str,
+    storage_scope_key: &str,
+) -> String {
+    if discovery_kind == "label" {
+        return digest(
+            format!(
+                "{}\0{storage_scope_key}\0{PARSER_REVISION}\0{MATERIALIZATION_REVISION}",
+                crate::GOOGLE_OAUTH_SCOPE
+            )
+            .as_bytes(),
+        );
+    }
+    search_scope_fingerprint(
+        "gmail-search-scope-v2",
+        account_key,
+        discovery_kind,
+        discovery_value,
+        crate::GOOGLE_OAUTH_SCOPE,
+        PARSER_REVISION,
+        MATERIALIZATION_REVISION,
+    )
+}
+
+fn search_scope_fingerprint(
+    version: &str,
+    account_key: &str,
+    discovery_kind: &str,
+    query: &str,
+    oauth_scope: &str,
+    parser_revision: &str,
+    materialization_revision: &str,
+) -> String {
     digest(
         format!(
-            "{}\0{label_id}\0{PARSER_REVISION}\0{MATERIALIZATION_REVISION}",
-            crate::GOOGLE_OAUTH_SCOPE
+            "{version}\0{account_key}\0{discovery_kind}\0{query}\0{oauth_scope}\0{parser_revision}\0{materialization_revision}"
         )
         .as_bytes(),
     )
@@ -1608,6 +1983,18 @@ fn map_busy_sql(error: rusqlite::Error) -> GmailConnectorPortError {
             if code.code == rusqlite::ErrorCode::ConstraintViolation
     ) {
         GmailConnectorPortError::new(GmailConnectorPortErrorKind::Busy)
+    } else {
+        internal()
+    }
+}
+
+fn map_request_reservation_sql(error: rusqlite::Error) -> GmailConnectorPortError {
+    if matches!(
+        error,
+        rusqlite::Error::SqliteFailure(ref code, _)
+            if code.code == rusqlite::ErrorCode::ConstraintViolation
+    ) {
+        conflict()
     } else {
         internal()
     }
@@ -1891,6 +2278,687 @@ mod tests {
             .unwrap();
         assert_eq!(state.status, GmailConnectorStatusV1::Disconnected);
         assert_eq!(state.settings.unwrap().label_name, "Wardrobe Receipts");
+    }
+
+    #[test]
+    fn search_settings_are_exact_replayable_and_query_identity_is_versioned() {
+        let connector = connector();
+        let request_id = RequestId::new_v4();
+        let request = SaveGmailSettingsV2Request {
+            schema_version: 2,
+            request_id,
+            client_id: "client.apps.googleusercontent.com".into(),
+            discovery_scope: GmailDiscoveryScopeV2::Search {
+                query: "  newer_than:3m subject:\"Order ready\"  ".into(),
+            },
+            limits: GmailConnectorLimitsV1 {
+                page_size: 50,
+                max_pages: 4,
+                max_unique_messages: 100,
+                max_total_raw_bytes: 50 * 1024 * 1024,
+            },
+        };
+
+        let created = connector.save_gmail_settings_v2(&request).unwrap();
+        assert_eq!(created.replay_status, ReplayStatusV1::Created);
+        let replayed = connector.save_gmail_settings_v2(&request).unwrap();
+        assert_eq!(replayed.replay_status, ReplayStatusV1::Replayed);
+        assert_eq!(replayed.settings.discovery_scope, request.discovery_scope);
+
+        let mut changed = request.clone();
+        changed.discovery_scope = GmailDiscoveryScopeV2::Search {
+            query: "newer_than:3m subject:\"Order ready\"".into(),
+        };
+        assert_eq!(
+            connector.save_gmail_settings_v2(&changed).unwrap_err().kind,
+            GmailConnectorPortErrorKind::Conflict
+        );
+
+        let state = connector
+            .get_gmail_connector_v2(&GetGmailConnectorV2Request {
+                schema_version: 2,
+                request_id: RequestId::new_v4(),
+            })
+            .unwrap();
+        assert_eq!(state.settings.unwrap(), created.settings);
+
+        let account_a = "a".repeat(64);
+        let account_b = "b".repeat(64);
+        let exact = scope_fingerprint(
+            &account_a,
+            "search",
+            "  newer_than:3m subject:\"Order ready\"  ",
+            "SEARCH",
+        );
+        assert_ne!(
+            exact,
+            scope_fingerprint(
+                &account_a,
+                "search",
+                "newer_than:3m subject:\"Order ready\"",
+                "SEARCH",
+            )
+        );
+        assert_ne!(
+            exact,
+            scope_fingerprint(
+                &account_b,
+                "search",
+                "  newer_than:3m subject:\"Order ready\"  ",
+                "SEARCH",
+            )
+        );
+        assert_ne!(
+            exact,
+            scope_fingerprint(
+                &account_a,
+                "label",
+                "  newer_than:3m subject:\"Order ready\"  ",
+                "Label_1",
+            )
+        );
+        assert_eq!(
+            scope_fingerprint(&account_a, "label", "First label name", "Label_1"),
+            scope_fingerprint(&account_b, "label", "Renamed label", "Label_1"),
+            "legacy label fingerprints remain provider-label based"
+        );
+    }
+
+    #[test]
+    fn gmail_scope_identity_is_versioned_and_byte_exact() {
+        let account = "a".repeat(64);
+        let query = "  newer_than:3m subject:\"Order ready\"  ";
+        let fingerprint = scope_fingerprint(&account, "search", query, "SEARCH");
+        assert_eq!(
+            fingerprint,
+            "0f97a3329ea770530ee5bd1a0dc9374eebafeff8363dfd3beb0799ad7ac76f1e"
+        );
+        assert_eq!(
+            stable_uuid("gmail-scope", &format!("{account}\0{fingerprint}")),
+            "669e96b9-5749-448a-8978-68a423884730"
+        );
+
+        let variants = [
+            search_scope_fingerprint(
+                "gmail-search-scope-v3",
+                &account,
+                "search",
+                query,
+                crate::GOOGLE_OAUTH_SCOPE,
+                PARSER_REVISION,
+                MATERIALIZATION_REVISION,
+            ),
+            search_scope_fingerprint(
+                "gmail-search-scope-v2",
+                &"b".repeat(64),
+                "search",
+                query,
+                crate::GOOGLE_OAUTH_SCOPE,
+                PARSER_REVISION,
+                MATERIALIZATION_REVISION,
+            ),
+            search_scope_fingerprint(
+                "gmail-search-scope-v2",
+                &account,
+                "search_changed",
+                query,
+                crate::GOOGLE_OAUTH_SCOPE,
+                PARSER_REVISION,
+                MATERIALIZATION_REVISION,
+            ),
+            search_scope_fingerprint(
+                "gmail-search-scope-v2",
+                &account,
+                "search",
+                " newer_than:3m subject:\"Order ready\"  ",
+                crate::GOOGLE_OAUTH_SCOPE,
+                PARSER_REVISION,
+                MATERIALIZATION_REVISION,
+            ),
+            search_scope_fingerprint(
+                "gmail-search-scope-v2",
+                &account,
+                "search",
+                "subject:\"cafe\u{301}\"",
+                crate::GOOGLE_OAUTH_SCOPE,
+                PARSER_REVISION,
+                MATERIALIZATION_REVISION,
+            ),
+            search_scope_fingerprint(
+                "gmail-search-scope-v2",
+                &account,
+                "search",
+                query,
+                "https://www.googleapis.com/auth/gmail.readonly openid",
+                PARSER_REVISION,
+                MATERIALIZATION_REVISION,
+            ),
+            search_scope_fingerprint(
+                "gmail-search-scope-v2",
+                &account,
+                "search",
+                query,
+                crate::GOOGLE_OAUTH_SCOPE,
+                "bounded-mime-v2",
+                MATERIALIZATION_REVISION,
+            ),
+            search_scope_fingerprint(
+                "gmail-search-scope-v2",
+                &account,
+                "search",
+                query,
+                crate::GOOGLE_OAUTH_SCOPE,
+                PARSER_REVISION,
+                "gmail-materialization-v2",
+            ),
+        ];
+        for variant in variants {
+            assert_ne!(variant, fingerprint);
+            assert_ne!(
+                stable_uuid("gmail-scope", &format!("{account}\0{variant}")),
+                "669e96b9-5749-448a-8978-68a423884730"
+            );
+        }
+
+        let composed_query = "subject:\"caf\u{e9}\"";
+        let decomposed_query = "subject:\"cafe\u{301}\"";
+        assert_ne!(composed_query.as_bytes(), decomposed_query.as_bytes());
+        assert_ne!(
+            scope_fingerprint(&account, "search", composed_query, "SEARCH"),
+            scope_fingerprint(&account, "search", decomposed_query, "SEARCH")
+        );
+
+        let legacy_fingerprint = scope_fingerprint(&account, "label", "Renamed label", "Label_1");
+        assert_eq!(
+            legacy_fingerprint,
+            "72c4e40d334a00278638127f0b39a43d7bad27db06515a7abceb9b61cb72d704"
+        );
+        assert_eq!(
+            stable_uuid("gmail-scope", &format!("{account}\0{legacy_fingerprint}")),
+            "39ce4ad5-084d-4de4-a3cb-bd6541fb2a7d"
+        );
+        assert_eq!(
+            legacy_fingerprint,
+            scope_fingerprint(&account, "label", "Original label", "Label_1")
+        );
+        assert_ne!(
+            legacy_fingerprint,
+            scope_fingerprint(&account, "label", "Renamed label", "Label_2")
+        );
+    }
+
+    #[test]
+    fn gmail_authority_is_exact_and_read_only() {
+        assert_eq!(
+            crate::GOOGLE_OAUTH_SCOPE,
+            "openid https://www.googleapis.com/auth/gmail.readonly"
+        );
+        assert_eq!(
+            crate::GOOGLE_OAUTH_SCOPE
+                .split_ascii_whitespace()
+                .collect::<Vec<_>>(),
+            ["openid", "https://www.googleapis.com/auth/gmail.readonly"]
+        );
+
+        let source = include_str!("gmail_http.rs");
+        let gateway = source
+            .split_once("impl GoogleGmailGateway {")
+            .unwrap()
+            .1
+            .split_once("pub fn gmail_account_key")
+            .unwrap()
+            .0;
+        assert_eq!(gateway.matches("gmail_url(").count(), 6);
+        assert_eq!(gateway.matches("Method::GET").count(), 6);
+        for mutation_method in [
+            "Method::POST",
+            "Method::PUT",
+            "Method::PATCH",
+            "Method::DELETE",
+        ] {
+            assert!(!gateway.contains(mutation_method));
+        }
+        for mutation_path in [
+            "/modify",
+            "/trash",
+            "/untrash",
+            "/send",
+            "/insert",
+            "/import",
+            "/batchModify",
+            "/batchDelete",
+        ] {
+            assert!(!gateway.contains(mutation_path));
+        }
+        assert_eq!(gateway.matches("\"users/me/labels\"").count(), 1);
+        assert_eq!(gateway.matches("\"users/me/profile\"").count(), 1);
+        assert_eq!(gateway.matches("\"users/me/messages\"").count(), 2);
+        assert_eq!(
+            gateway
+                .matches("\"users/me/messages/{message_id}\"")
+                .count(),
+            1
+        );
+        assert_eq!(gateway.matches("\"users/me/history\"").count(), 1);
+    }
+
+    #[test]
+    fn completed_sync_replay_is_write_free_and_cross_command_reuse_conflicts() {
+        let connector = controlled_connector(0);
+        let request = SyncGmailV1Request {
+            schema_version: SCHEMA_VERSION_V1,
+            request_id: RequestId::new_v4(),
+        };
+        let request_id = request.request_id.to_string();
+        let request_envelope = envelope(&request).unwrap();
+        let response = SyncGmailV1Response {
+            schema_version: SCHEMA_VERSION_V1,
+            request_id: request.request_id,
+            status: GmailConnectorStatusV1::Connected,
+            user_action: UserActionKeyV1::None,
+            summary: wardrobe_core::GmailSyncSummaryV1 {
+                pages_scanned: 2,
+                unique_messages: 3,
+                messages_imported: 2,
+                messages_updated: 1,
+                messages_unavailable: 0,
+                raw_bytes_read: 4096,
+            },
+            replay_status: ReplayStatusV1::Created,
+        };
+        connector
+            .database
+            .connection()
+            .unwrap()
+            .execute(
+                "INSERT INTO command_receipts(
+                    request_id, command_name, envelope_hash,
+                    response_json, created_at_ms
+                 ) VALUES (?1, 'sync_gmail_v1', ?2, ?3, 1)",
+                params![
+                    request_id,
+                    request_envelope,
+                    serde_json::to_string(&response).unwrap()
+                ],
+            )
+            .unwrap();
+        let observer = connector.database.connection().unwrap();
+        let before_data_version = observer
+            .pragma_query_value(None, "data_version", |row| row.get::<_, i64>(0))
+            .unwrap();
+
+        let replay = connector.sync_gmail(&request).unwrap();
+        assert_eq!(replay.replay_status, ReplayStatusV1::Replayed);
+        assert_eq!(replay.summary, response.summary);
+        assert_eq!(
+            observer
+                .pragma_query_value(None, "data_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            before_data_version
+        );
+        let credential_state = connector.credentials.0.lock().unwrap();
+        assert_eq!(credential_state.get_calls, 0);
+        assert_eq!(credential_state.put_calls, 0);
+        assert_eq!(credential_state.delete_calls, 0);
+        drop(credential_state);
+
+        assert_eq!(
+            connector
+                .disconnect_gmail(&DisconnectGmailV1Request {
+                    schema_version: SCHEMA_VERSION_V1,
+                    request_id: request.request_id,
+                })
+                .unwrap_err()
+                .kind,
+            GmailConnectorPortErrorKind::Conflict
+        );
+        assert_eq!(
+            observer
+                .pragma_query_value(None, "data_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            before_data_version
+        );
+    }
+
+    #[test]
+    fn first_connect_scope_and_sources_publish_atomically_after_collection() {
+        let connector = connector();
+        let request = ConnectGmailV1Request {
+            schema_version: SCHEMA_VERSION_V1,
+            request_id: RequestId::new_v4(),
+        };
+        let request_id = request.request_id.to_string();
+        let request_envelope = envelope(&request).unwrap();
+        assert!(matches!(
+            connector
+                .reserve_request::<ConnectGmailV1Response>(
+                    &request_id,
+                    "connect_gmail_v1",
+                    &request_envelope,
+                )
+                .unwrap(),
+            RequestReservation::New
+        ));
+        begin_operation(
+            &connector.database,
+            &request_id,
+            "connect_gmail_v1",
+            &request_envelope,
+            "authorizing",
+        )
+        .unwrap();
+        let locator = CredentialLocator::new("atomic-connect-locator".into()).unwrap();
+        reserve_credential(&connector.database, &request_id, &locator).unwrap();
+        activate_credential(&connector.database, &locator).unwrap();
+        mark_operation_syncing(&connector.database, &request_id).unwrap();
+
+        let initialization = GmailScopeInitialization {
+            account_key: "a".repeat(64),
+            credential_locator: locator.expose_locator().to_owned(),
+            scope_id: "15151515-1515-4515-8515-151515151515".into(),
+            scope_fingerprint: "b".repeat(64),
+            storage_scope_key: "SEARCH".into(),
+            discovery_kind: "search".into(),
+            discovery_value: "has:attachment newer_than:1y".into(),
+            parser_revision: PARSER_REVISION.into(),
+            materialization_revision: MATERIALIZATION_REVISION.into(),
+            created_at_ms: 2,
+        };
+        let key = SyncKey {
+            account_key: initialization.account_key.clone(),
+            scope_id: initialization.scope_id.clone(),
+            label_id: initialization.storage_scope_key.clone(),
+        };
+        let collection = GmailScopeCollection {
+            database: &connector.database,
+            initialization: &initialization,
+        };
+        assert_eq!(collection.checkpoint(&key).unwrap(), None);
+        assert!(collection.known_message_ids(&key).unwrap().is_empty());
+
+        let raw = b"From: shop@example.com\r\nSubject: Atomic receipt\r\n\r\nbody";
+        let mut batch = SyncBatch {
+            mode: crate::SyncMode::Reconciled,
+            expected_checkpoint: Some("unexpected".into()),
+            next_checkpoint: crate::HistoryId::parse("20").unwrap(),
+            discovered_message_ids: vec!["message-1".into()],
+            effects: vec![crate::RevisionEffect::Available {
+                message_id: "message-1".into(),
+                revision: crate::HistoryId::parse("19").unwrap(),
+                raw: raw.to_vec(),
+            }],
+            pages: 1,
+            gateway_calls: 3,
+            raw_bytes: raw.len(),
+        };
+        assert_eq!(
+            connector
+                .database
+                .commit_new_gmail_operation(
+                    &initialization,
+                    &batch,
+                    &request_id,
+                    &request_envelope,
+                    GmailSyncCommandKind::Connect,
+                )
+                .unwrap_err()
+                .kind,
+            GmailConnectorPortErrorKind::Conflict
+        );
+        let connection = connector.database.connection().unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT
+                       (SELECT COUNT(*) FROM gmail_accounts)
+                     + (SELECT COUNT(*) FROM gmail_scopes)
+                     + (SELECT COUNT(*) FROM gmail_checkpoints)
+                     + (SELECT COUNT(*) FROM gmail_provider_sources)
+                     + (SELECT COUNT(*) FROM gmail_scope_sources)",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            0
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT stage FROM gmail_operations WHERE request_id = ?1",
+                    [&request_id],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "syncing"
+        );
+        drop(connection);
+
+        batch.expected_checkpoint = None;
+        connector
+            .database
+            .commit_new_gmail_operation(
+                &initialization,
+                &batch,
+                &request_id,
+                &request_envelope,
+                GmailSyncCommandKind::Connect,
+            )
+            .unwrap();
+        let connection = connector.database.connection().unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT
+                       (SELECT COUNT(*) FROM gmail_accounts)
+                     + (SELECT COUNT(*) FROM gmail_scopes)
+                     + (SELECT COUNT(*) FROM gmail_checkpoints)
+                     + (SELECT COUNT(*) FROM gmail_provider_sources)
+                     + (SELECT COUNT(*) FROM gmail_scope_sources)",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            5
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT status, account_key, scope_id
+                     FROM gmail_connector_state WHERE singleton = 1",
+                    [],
+                    |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, String>(1)?,
+                            row.get::<_, String>(2)?,
+                        ))
+                    },
+                )
+                .unwrap(),
+            (
+                "connected".into(),
+                initialization.account_key,
+                initialization.scope_id,
+            )
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM command_receipts WHERE request_id = ?1",
+                    [&request_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1
+        );
+    }
+
+    #[test]
+    fn terminal_connect_replay_is_provider_keychain_and_write_free() {
+        let connector = controlled_connector(0);
+        let request = ConnectGmailV1Request {
+            schema_version: SCHEMA_VERSION_V1,
+            request_id: RequestId::new_v4(),
+        };
+        let request_id = request.request_id.to_string();
+        let request_envelope = envelope(&request).unwrap();
+        let response = ConnectGmailV1Response {
+            schema_version: SCHEMA_VERSION_V1,
+            request_id: request.request_id,
+            status: GmailConnectorStatusV1::Connected,
+            user_action: UserActionKeyV1::None,
+            summary: wardrobe_core::GmailSyncSummaryV1 {
+                pages_scanned: 1,
+                unique_messages: 1,
+                messages_imported: 1,
+                messages_updated: 0,
+                messages_unavailable: 0,
+                raw_bytes_read: 128,
+            },
+            replay_status: ReplayStatusV1::Created,
+        };
+        let connection = connector.database.connection().unwrap();
+        connection
+            .execute(
+                "INSERT INTO gmail_request_reservations(
+                    request_id, command_name, envelope_hash, created_at_ms
+                 ) VALUES (?1, 'connect_gmail_v1', ?2, 7)",
+                params![request_id, request_envelope],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO command_receipts(
+                    request_id, command_name, envelope_hash,
+                    response_json, created_at_ms
+                 ) VALUES (?1, 'connect_gmail_v1', ?2, ?3, 8)",
+                params![
+                    request_id,
+                    request_envelope,
+                    serde_json::to_string(&response).unwrap()
+                ],
+            )
+            .unwrap();
+        drop(connection);
+        let observer = connector.database.connection().unwrap();
+        let before_data_version = observer
+            .pragma_query_value(None, "data_version", |row| row.get::<_, i64>(0))
+            .unwrap();
+
+        let replay = connector.connect_gmail(&request).unwrap();
+
+        assert_eq!(replay.replay_status, ReplayStatusV1::Replayed);
+        assert_eq!(replay.summary, response.summary);
+        assert_eq!(
+            observer
+                .pragma_query_value(None, "data_version", |row| row.get::<_, i64>(0))
+                .unwrap(),
+            before_data_version
+        );
+        assert_eq!(
+            observer
+                .query_row(
+                    "SELECT created_at_ms FROM gmail_request_reservations
+                     WHERE request_id = ?1",
+                    [&request_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            7
+        );
+        let credential_state = connector.credentials.0.lock().unwrap();
+        assert_eq!(credential_state.get_calls, 0);
+        assert_eq!(credential_state.put_calls, 0);
+        assert_eq!(credential_state.delete_calls, 0);
+    }
+
+    #[test]
+    fn cleaned_up_request_reservation_conflicts_after_restart() {
+        let connector = controlled_connector(0);
+        let request = SyncGmailV1Request {
+            schema_version: SCHEMA_VERSION_V1,
+            request_id: RequestId::new_v4(),
+        };
+        let request_id = request.request_id.to_string();
+        let request_envelope = envelope(&request).unwrap();
+        assert!(matches!(
+            connector
+                .reserve_request::<SyncGmailV1Response>(
+                    &request_id,
+                    "sync_gmail_v1",
+                    &request_envelope,
+                )
+                .unwrap(),
+            RequestReservation::New
+        ));
+        begin_operation(
+            &connector.database,
+            &request_id,
+            "sync_gmail_v1",
+            &request_envelope,
+            "syncing",
+        )
+        .unwrap();
+        delete_incomplete_sync_operation(&connector.database, &request_id).unwrap();
+        let paths = connector.database.paths.clone();
+        let credentials = connector.credentials.clone();
+        drop(connector);
+
+        let reopened = ProductionGmailConnector::with_adapters(
+            Database::open(&paths, 20).unwrap(),
+            credentials,
+            GoogleHttpClient::production().unwrap(),
+        );
+        assert_eq!(
+            reopened.sync_gmail(&request).unwrap_err().kind,
+            GmailConnectorPortErrorKind::Conflict
+        );
+        let changed_envelope = SyncGmailV1Request {
+            schema_version: 2,
+            request_id: request.request_id,
+        };
+        assert_eq!(
+            reopened.sync_gmail(&changed_envelope).unwrap_err().kind,
+            GmailConnectorPortErrorKind::Conflict
+        );
+        assert_eq!(
+            reopened
+                .save_gmail_settings(&SaveGmailSettingsV1Request {
+                    schema_version: SCHEMA_VERSION_V1,
+                    request_id: request.request_id,
+                    client_id: "client.apps.googleusercontent.com".into(),
+                    label_name: "Receipts".into(),
+                    limits: GmailConnectorLimitsV1 {
+                        page_size: 25,
+                        max_pages: 2,
+                        max_unique_messages: 50,
+                        max_total_raw_bytes: 1024 * 1024,
+                    },
+                })
+                .unwrap_err()
+                .kind,
+            GmailConnectorPortErrorKind::Conflict
+        );
+        assert_eq!(
+            reopened
+                .database
+                .connection()
+                .unwrap()
+                .query_row(
+                    "SELECT COUNT(*) FROM gmail_request_reservations
+                     WHERE request_id = ?1
+                       AND command_name = 'sync_gmail_v1'
+                       AND envelope_hash = ?2",
+                    params![request_id, request_envelope],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            1
+        );
+        let credential_state = reopened.credentials.0.lock().unwrap();
+        assert_eq!(credential_state.get_calls, 0);
+        assert_eq!(credential_state.put_calls, 0);
+        assert_eq!(credential_state.delete_calls, 0);
     }
 
     #[test]
@@ -2384,10 +3452,30 @@ mod tests {
     }
 
     #[test]
-    fn startup_discards_interrupted_sync_without_changing_connected_state() {
+    fn startup_reopens_and_discards_interrupted_sync_without_losing_evidence() {
         let connector = connector();
         let locator = CredentialLocator::new("sync-recovery-locator".into()).unwrap();
         let (account_key, scope_id) = seed_connected(&connector, &locator);
+        let key = SyncKey {
+            account_key: account_key.clone(),
+            scope_id: scope_id.clone(),
+            label_id: "Label_1".into(),
+        };
+        let baseline = SyncBatch {
+            mode: crate::SyncMode::Reconciled,
+            expected_checkpoint: None,
+            next_checkpoint: crate::HistoryId::parse("10").unwrap(),
+            discovered_message_ids: vec!["baseline".into()],
+            effects: vec![crate::RevisionEffect::Available {
+                message_id: "baseline".into(),
+                revision: crate::HistoryId::parse("8").unwrap(),
+                raw: b"From: shop@example.com\r\nSubject: baseline receipt\r\n\r\nbody".to_vec(),
+            }],
+            pages: 1,
+            gateway_calls: 3,
+            raw_bytes: 58,
+        };
+        crate::GmailSyncStore::commit(&connector.database, &key, &baseline).unwrap();
         let request_id = RequestId::new_v4().to_string();
         begin_operation(
             &connector.database,
@@ -2397,10 +3485,19 @@ mod tests {
             "syncing",
         )
         .unwrap();
+        let paths = connector.database.paths.clone();
+        let credentials = connector.credentials.clone();
+        drop(connector);
 
-        connector.recover_with_revocation().unwrap();
+        let reopened_database = Database::open(&paths, 20).unwrap();
+        let reopened = ProductionGmailConnector::with_adapters(
+            reopened_database,
+            credentials,
+            GoogleHttpClient::production().unwrap(),
+        );
+        reopened.recover_with_revocation().unwrap();
 
-        let connection = connector.database.connection().unwrap();
+        let connection = reopened.database.connection().unwrap();
         assert_eq!(
             connection
                 .query_row(
@@ -2421,6 +3518,50 @@ mod tests {
                 )
                 .unwrap(),
             (account_key, scope_id)
+        );
+        assert_eq!(
+            crate::GmailSyncStore::checkpoint(&reopened.database, &key)
+                .unwrap()
+                .as_deref(),
+            Some("10")
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM gmail_source_revisions", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            1
+        );
+
+        let retry = SyncBatch {
+            mode: crate::SyncMode::Reconciled,
+            expected_checkpoint: Some("10".into()),
+            next_checkpoint: crate::HistoryId::parse("11").unwrap(),
+            discovered_message_ids: vec!["retry".into()],
+            effects: vec![crate::RevisionEffect::Available {
+                message_id: "retry".into(),
+                revision: crate::HistoryId::parse("9").unwrap(),
+                raw: b"From: shop@example.com\r\nSubject: retry receipt\r\n\r\nbody".to_vec(),
+            }],
+            pages: 1,
+            gateway_calls: 3,
+            raw_bytes: 55,
+        };
+        crate::GmailSyncStore::commit(&reopened.database, &key, &retry).unwrap();
+        assert_eq!(
+            crate::GmailSyncStore::checkpoint(&reopened.database, &key)
+                .unwrap()
+                .as_deref(),
+            Some("11")
+        );
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM gmail_source_revisions", [], |row| {
+                    row.get::<_, i64>(0)
+                })
+                .unwrap(),
+            2
         );
     }
 

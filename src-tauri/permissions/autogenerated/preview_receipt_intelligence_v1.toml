@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-preview-receipt-intelligence-v1"
+description = "Enables the preview_receipt_intelligence_v1 command without any pre-configured scope."
+commands.allow = ["preview_receipt_intelligence_v1"]
+
+[[permission]]
+identifier = "deny-preview-receipt-intelligence-v1"
+description = "Denies the preview_receipt_intelligence_v1 command without any pre-configured scope."
+commands.deny = ["preview_receipt_intelligence_v1"]

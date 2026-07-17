@@ -1,0 +1,426 @@
+{
+  "accepted_at": "2026-07-17T01:22:52+00:00",
+  "build_command": [
+    "make",
+    "build"
+  ],
+  "build_source_fingerprint": "819e20d7a172494e8e3f12978e949431322d419454a4140d599e4e307530347c",
+  "evaluate_command": [
+    "make",
+    "test"
+  ],
+  "evidence": [
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 6,
+        "external_credentials_used": false,
+        "live_openai_canary_acceptance_claim": "deferred_not_passed",
+        "live_openai_canary_external_credentials_used": false,
+        "live_openai_canary_production_provider_calls": 0,
+        "live_openai_canary_status": "deferred",
+        "packaged_disabled_state_coverage": false,
+        "production_provider_calls": 0,
+        "vertical_smoke_coverage": false
+      },
+      "recorded_at": "2026-07-17T01:16:31+00:00",
+      "requirement_id": "P11-CLS-001",
+      "sha256": "ae50e3a5d9e0939ec02aebbc452fcbd826cc9dca0e3b0cbaddaf418646b6c6e9",
+      "status": "pass",
+      "test": "p11_receipt_intelligence::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 6,
+        "external_credentials_used": false,
+        "live_openai_canary_acceptance_claim": "deferred_not_passed",
+        "live_openai_canary_external_credentials_used": false,
+        "live_openai_canary_production_provider_calls": 0,
+        "live_openai_canary_status": "deferred",
+        "packaged_disabled_state_coverage": false,
+        "production_provider_calls": 0,
+        "vertical_smoke_coverage": false
+      },
+      "recorded_at": "2026-07-17T01:16:31+00:00",
+      "requirement_id": "P11-CLS-002",
+      "sha256": "4cd546a18eb7f7f5f7459bec1ff403278f3b7f14c15ea77f9bb2ba5b47b360b9",
+      "status": "pass",
+      "test": "p11_receipt_intelligence::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 8,
+        "external_credentials_used": false,
+        "live_openai_canary_acceptance_claim": "deferred_not_passed",
+        "live_openai_canary_external_credentials_used": false,
+        "live_openai_canary_production_provider_calls": 0,
+        "live_openai_canary_status": "deferred",
+        "packaged_disabled_state_coverage": false,
+        "production_provider_calls": 0,
+        "vertical_smoke_coverage": false
+      },
+      "recorded_at": "2026-07-17T01:16:31+00:00",
+      "requirement_id": "P11-PRV-001",
+      "sha256": "e615d7ad3fc053f0cddd96c5fc550f23b31174bcf89258732c730bf36c287058",
+      "status": "pass",
+      "test": "p11_receipt_intelligence::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 9,
+        "external_credentials_used": false,
+        "live_openai_canary_acceptance_claim": "deferred_not_passed",
+        "live_openai_canary_external_credentials_used": false,
+        "live_openai_canary_production_provider_calls": 0,
+        "live_openai_canary_status": "deferred",
+        "packaged_disabled_state_coverage": false,
+        "production_provider_calls": 0,
+        "vertical_smoke_coverage": false
+      },
+      "recorded_at": "2026-07-17T01:16:31+00:00",
+      "requirement_id": "P11-AUT-001",
+      "sha256": "55a6b4a099d0f21807ed9388fce531c289aa96d71a5d10d3b9eca8d851b2645e",
+      "status": "pass",
+      "test": "p11_receipt_intelligence::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 7,
+        "external_credentials_used": false,
+        "live_openai_canary_acceptance_claim": "deferred_not_passed",
+        "live_openai_canary_external_credentials_used": false,
+        "live_openai_canary_production_provider_calls": 0,
+        "live_openai_canary_status": "deferred",
+        "packaged_disabled_state_coverage": false,
+        "production_provider_calls": 0,
+        "vertical_smoke_coverage": false
+      },
+      "recorded_at": "2026-07-17T01:16:31+00:00",
+      "requirement_id": "P11-SEC-001",
+      "sha256": "25b2cdc47e83f5cf27ef489fe70d3ce77c0bc59dd94e34bfd1b1b62bf0a7aa98",
+      "status": "pass",
+      "test": "p11_receipt_intelligence::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 6,
+        "external_credentials_used": false,
+        "live_openai_canary_acceptance_claim": "deferred_not_passed",
+        "live_openai_canary_external_credentials_used": false,
+        "live_openai_canary_production_provider_calls": 0,
+        "live_openai_canary_status": "deferred",
+        "packaged_disabled_state_coverage": false,
+        "production_provider_calls": 0,
+        "vertical_smoke_coverage": false
+      },
+      "recorded_at": "2026-07-17T01:16:31+00:00",
+      "requirement_id": "P11-BND-001",
+      "sha256": "58e3867eba7caa266759438c59789993156fd90f30305b60eeae9d779710ed56",
+      "status": "pass",
+      "test": "p11_receipt_intelligence::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 7,
+        "external_credentials_used": false,
+        "live_openai_canary_acceptance_claim": "deferred_not_passed",
+        "live_openai_canary_external_credentials_used": false,
+        "live_openai_canary_production_provider_calls": 0,
+        "live_openai_canary_status": "deferred",
+        "packaged_disabled_state_coverage": false,
+        "production_provider_calls": 0,
+        "vertical_smoke_coverage": false
+      },
+      "recorded_at": "2026-07-17T01:16:31+00:00",
+      "requirement_id": "P11-BND-002",
+      "sha256": "5e71e0fd4101b06f064153269c984385975ce1c475ded3641a46753ab670b5b9",
+      "status": "pass",
+      "test": "p11_receipt_intelligence::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 5,
+        "external_credentials_used": false,
+        "live_openai_canary_acceptance_claim": "deferred_not_passed",
+        "live_openai_canary_external_credentials_used": false,
+        "live_openai_canary_production_provider_calls": 0,
+        "live_openai_canary_status": "deferred",
+        "packaged_disabled_state_coverage": false,
+        "production_provider_calls": 0,
+        "vertical_smoke_coverage": false
+      },
+      "recorded_at": "2026-07-17T01:16:31+00:00",
+      "requirement_id": "P11-AI-001",
+      "sha256": "1b98d90f5249ef4c330717a152d9f143a63908e676788ec56f3707eb42457e95",
+      "status": "pass",
+      "test": "p11_receipt_intelligence::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 6,
+        "external_credentials_used": false,
+        "live_openai_canary_acceptance_claim": "deferred_not_passed",
+        "live_openai_canary_external_credentials_used": false,
+        "live_openai_canary_production_provider_calls": 0,
+        "live_openai_canary_status": "deferred",
+        "packaged_disabled_state_coverage": false,
+        "production_provider_calls": 0,
+        "vertical_smoke_coverage": false
+      },
+      "recorded_at": "2026-07-17T01:16:31+00:00",
+      "requirement_id": "P11-AI-002",
+      "sha256": "4bc2aaf276031f4ed2f6eed6f203231ea60bc9d45b5c1311223ac94fa4c8f1ea",
+      "status": "pass",
+      "test": "p11_receipt_intelligence::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 5,
+        "external_credentials_used": false,
+        "live_openai_canary_acceptance_claim": "deferred_not_passed",
+        "live_openai_canary_external_credentials_used": false,
+        "live_openai_canary_production_provider_calls": 0,
+        "live_openai_canary_status": "deferred",
+        "packaged_disabled_state_coverage": false,
+        "production_provider_calls": 0,
+        "vertical_smoke_coverage": false
+      },
+      "recorded_at": "2026-07-17T01:16:31+00:00",
+      "requirement_id": "P11-SAF-001",
+      "sha256": "78bcbb305911287d7a0d7d87b51e5f116f3d580e06da1834673cbeb30a254a0b",
+      "status": "pass",
+      "test": "p11_receipt_intelligence::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 6,
+        "external_credentials_used": false,
+        "live_openai_canary_acceptance_claim": "deferred_not_passed",
+        "live_openai_canary_external_credentials_used": false,
+        "live_openai_canary_production_provider_calls": 0,
+        "live_openai_canary_status": "deferred",
+        "packaged_disabled_state_coverage": false,
+        "production_provider_calls": 0,
+        "vertical_smoke_coverage": false
+      },
+      "recorded_at": "2026-07-17T01:16:31+00:00",
+      "requirement_id": "P11-CIT-001",
+      "sha256": "c8068fcfa01fb632b8e20c152976650490c8a768b884a7cb3eb1b79340643f42",
+      "status": "pass",
+      "test": "p11_receipt_intelligence::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 8,
+        "external_credentials_used": false,
+        "live_openai_canary_acceptance_claim": "deferred_not_passed",
+        "live_openai_canary_external_credentials_used": false,
+        "live_openai_canary_production_provider_calls": 0,
+        "live_openai_canary_status": "deferred",
+        "packaged_disabled_state_coverage": false,
+        "production_provider_calls": 0,
+        "vertical_smoke_coverage": false
+      },
+      "recorded_at": "2026-07-17T01:16:31+00:00",
+      "requirement_id": "P11-REL-001",
+      "sha256": "f10feb54ae518a76c16a3dc52ce82352d9eca88ff59b7c88e61f3b6059c7fd2e",
+      "status": "pass",
+      "test": "p11_receipt_intelligence::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 8,
+        "external_credentials_used": false,
+        "live_openai_canary_acceptance_claim": "deferred_not_passed",
+        "live_openai_canary_external_credentials_used": false,
+        "live_openai_canary_production_provider_calls": 0,
+        "live_openai_canary_status": "deferred",
+        "packaged_disabled_state_coverage": false,
+        "production_provider_calls": 0,
+        "vertical_smoke_coverage": false
+      },
+      "recorded_at": "2026-07-17T01:16:31+00:00",
+      "requirement_id": "P11-REL-002",
+      "sha256": "45e22bc4550dc2408f8070a4e7c88939b6702f6464a64517c8565616e8cb2cbe",
+      "status": "pass",
+      "test": "p11_receipt_intelligence::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 6,
+        "external_credentials_used": false,
+        "live_openai_canary_acceptance_claim": "deferred_not_passed",
+        "live_openai_canary_external_credentials_used": false,
+        "live_openai_canary_production_provider_calls": 0,
+        "live_openai_canary_status": "deferred",
+        "packaged_disabled_state_coverage": false,
+        "production_provider_calls": 0,
+        "vertical_smoke_coverage": false
+      },
+      "recorded_at": "2026-07-17T01:16:31+00:00",
+      "requirement_id": "P11-ATM-001",
+      "sha256": "23d466a1572cb65f92680025475999159778efd0458a1ab949c31b2d255b2943",
+      "status": "pass",
+      "test": "p11_receipt_intelligence::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 5,
+        "external_credentials_used": false,
+        "live_openai_canary_acceptance_claim": "deferred_not_passed",
+        "live_openai_canary_external_credentials_used": false,
+        "live_openai_canary_production_provider_calls": 0,
+        "live_openai_canary_status": "deferred",
+        "packaged_disabled_state_coverage": false,
+        "production_provider_calls": 0,
+        "vertical_smoke_coverage": false
+      },
+      "recorded_at": "2026-07-17T01:16:31+00:00",
+      "requirement_id": "P11-DEC-001",
+      "sha256": "9cecc72330074822550dde6e0ac2bddc11db75343745c7dbaaca205ff3eba093",
+      "status": "pass",
+      "test": "p11_receipt_intelligence::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 9,
+        "external_credentials_used": false,
+        "live_openai_canary_acceptance_claim": "deferred_not_passed",
+        "live_openai_canary_external_credentials_used": false,
+        "live_openai_canary_production_provider_calls": 0,
+        "live_openai_canary_status": "deferred",
+        "packaged_disabled_state_coverage": true,
+        "production_provider_calls": 0,
+        "vertical_smoke_coverage": false
+      },
+      "recorded_at": "2026-07-17T01:16:31+00:00",
+      "requirement_id": "P11-GAT-001",
+      "sha256": "115b7a45a08c57eeec6fa54237fe167fe70ce2d5615cc9af3d128b69c18546b6",
+      "status": "pass",
+      "test": "p11_receipt_intelligence::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 8,
+        "external_credentials_used": false,
+        "live_openai_canary_acceptance_claim": "deferred_not_passed",
+        "live_openai_canary_external_credentials_used": false,
+        "live_openai_canary_production_provider_calls": 0,
+        "live_openai_canary_status": "deferred",
+        "packaged_disabled_state_coverage": false,
+        "production_provider_calls": 0,
+        "vertical_smoke_coverage": false
+      },
+      "recorded_at": "2026-07-17T01:16:31+00:00",
+      "requirement_id": "P11-UI-001",
+      "sha256": "d36d05496f3b969f58083bd91ea11ffd3513cb5419b47c57a9a8f9d4835a8efc",
+      "status": "pass",
+      "test": "p11_receipt_intelligence::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 8,
+        "external_credentials_used": false,
+        "live_openai_canary_acceptance_claim": "deferred_not_passed",
+        "live_openai_canary_external_credentials_used": false,
+        "live_openai_canary_production_provider_calls": 0,
+        "live_openai_canary_status": "deferred",
+        "packaged_disabled_state_coverage": false,
+        "production_provider_calls": 0,
+        "vertical_smoke_coverage": false
+      },
+      "recorded_at": "2026-07-17T01:16:31+00:00",
+      "requirement_id": "P11-UI-002",
+      "sha256": "b2842c7b672c3d4063c63d4c5c40c6169e8b3c24e6b4d4d50afe935e1bc19cfa",
+      "status": "pass",
+      "test": "p11_receipt_intelligence::focused_local_verification"
+    },
+    {
+      "public_summary": {
+        "acceptance_claim": "focused_local_requirement_passed",
+        "checks_passed": 9,
+        "external_credentials_used": false,
+        "live_openai_canary_acceptance_claim": "deferred_not_passed",
+        "live_openai_canary_external_credentials_used": false,
+        "live_openai_canary_production_provider_calls": 0,
+        "live_openai_canary_status": "deferred",
+        "packaged_disabled_state_coverage": false,
+        "production_provider_calls": 0,
+        "vertical_smoke_coverage": true
+      },
+      "recorded_at": "2026-07-17T01:16:31+00:00",
+      "requirement_id": "P11-E2E-001",
+      "sha256": "b6508e45dc5e14ab761d61fcc2c683859c3aaff1e03ea1b0b9bec9f8cc4d6b40",
+      "status": "pass",
+      "test": "p11_receipt_intelligence::focused_local_verification"
+    }
+  ],
+  "evidence_file_hashes": {
+    "P11-AI-001.json": "1b98d90f5249ef4c330717a152d9f143a63908e676788ec56f3707eb42457e95",
+    "P11-AI-002.json": "4bc2aaf276031f4ed2f6eed6f203231ea60bc9d45b5c1311223ac94fa4c8f1ea",
+    "P11-ATM-001.json": "23d466a1572cb65f92680025475999159778efd0458a1ab949c31b2d255b2943",
+    "P11-AUT-001.json": "55a6b4a099d0f21807ed9388fce531c289aa96d71a5d10d3b9eca8d851b2645e",
+    "P11-BND-001.json": "58e3867eba7caa266759438c59789993156fd90f30305b60eeae9d779710ed56",
+    "P11-BND-002.json": "5e71e0fd4101b06f064153269c984385975ce1c475ded3641a46753ab670b5b9",
+    "P11-CIT-001.json": "c8068fcfa01fb632b8e20c152976650490c8a768b884a7cb3eb1b79340643f42",
+    "P11-CLS-001.json": "ae50e3a5d9e0939ec02aebbc452fcbd826cc9dca0e3b0cbaddaf418646b6c6e9",
+    "P11-CLS-002.json": "4cd546a18eb7f7f5f7459bec1ff403278f3b7f14c15ea77f9bb2ba5b47b360b9",
+    "P11-DEC-001.json": "9cecc72330074822550dde6e0ac2bddc11db75343745c7dbaaca205ff3eba093",
+    "P11-E2E-001.json": "b6508e45dc5e14ab761d61fcc2c683859c3aaff1e03ea1b0b9bec9f8cc4d6b40",
+    "P11-GAT-001.json": "115b7a45a08c57eeec6fa54237fe167fe70ce2d5615cc9af3d128b69c18546b6",
+    "P11-PRV-001.json": "e615d7ad3fc053f0cddd96c5fc550f23b31174bcf89258732c730bf36c287058",
+    "P11-REL-001.json": "f10feb54ae518a76c16a3dc52ce82352d9eca88ff59b7c88e61f3b6059c7fd2e",
+    "P11-REL-002.json": "45e22bc4550dc2408f8070a4e7c88939b6702f6464a64517c8565616e8cb2cbe",
+    "P11-SAF-001.json": "78bcbb305911287d7a0d7d87b51e5f116f3d580e06da1834673cbeb30a254a0b",
+    "P11-SEC-001.json": "25b2cdc47e83f5cf27ef489fe70d3ce77c0bc59dd94e34bfd1b1b62bf0a7aa98",
+    "P11-UI-001.json": "d36d05496f3b969f58083bd91ea11ffd3513cb5419b47c57a9a8f9d4835a8efc",
+    "P11-UI-002.json": "b2842c7b672c3d4063c63d4c5c40c6169e8b3c24e6b4d4d50afe935e1bc19cfa",
+    "p11-receipt-intelligence-diagnostics.json": "92c24e69243d0353b00754d44529769bb32087bb557a89b78e3611c3287d033e"
+  },
+  "phase": "P11",
+  "proposal_hash": "ab85491e61c17dbd465655e6e21dc087f079de4b7e58784a0637215847904d04",
+  "run_id": "20260716T212140Z-b027b95e",
+  "schema_version": 1,
+  "selected_requirement_ids": [
+    "P11-AI-001",
+    "P11-AI-002",
+    "P11-ATM-001",
+    "P11-AUT-001",
+    "P11-BND-001",
+    "P11-BND-002",
+    "P11-CIT-001",
+    "P11-CLS-001",
+    "P11-CLS-002",
+    "P11-DEC-001",
+    "P11-E2E-001",
+    "P11-GAT-001",
+    "P11-PRV-001",
+    "P11-REL-001",
+    "P11-REL-002",
+    "P11-SAF-001",
+    "P11-SEC-001",
+    "P11-UI-001",
+    "P11-UI-002"
+  ],
+  "spec_hashes": {
+    "specs/phases/P11-receipt-intelligence.md": "e559ff6bcddf2d6546a50fbce22315b210c617c1454a3340ebcbd4619cb73c66",
+    "specs/system.md": "1cb32b71698c8accfafa34dab8c73eb47e047a49ccc6f2ac0b25734e1d8d1546"
+  }
+}

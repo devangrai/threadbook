@@ -383,7 +383,7 @@ impl Validate for PreviewDeletionV1Response {
             self.retained_shared_blob_count,
         )?;
         validate_retention_reports(&self.backup_retention, &self.remote_retention)?;
-        if self.counts.len() != 7
+        if self.counts.len() != 8
             || self
                 .counts
                 .iter()

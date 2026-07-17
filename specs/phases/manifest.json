@@ -80,6 +80,30 @@
       "depends_on": ["P06", "P07", "P08"],
       "build_command": ["make", "build"],
       "evaluate_command": ["make", "test"]
+    },
+    {
+      "id": "P10",
+      "name": "Gmail to wardrobe",
+      "spec": "specs/phases/P10-gmail-wardrobe.md",
+      "depends_on": ["P03", "P06"],
+      "build_command": ["make", "build"],
+      "evaluate_command": ["make", "test"]
+    },
+    {
+      "id": "P11",
+      "name": "OpenAI receipt intelligence",
+      "spec": "specs/phases/P11-receipt-intelligence.md",
+      "depends_on": ["P10"],
+      "build_command": ["make", "build"],
+      "evaluate_command": ["make", "test"]
+    },
+    {
+      "id": "P12",
+      "name": "Receipt purchase unit promotion",
+      "spec": "specs/phases/P12-receipt-promotion.md",
+      "depends_on": ["P11"],
+      "build_command": ["make", "build"],
+      "evaluate_command": ["make", "test"]
     }
   ]
 }

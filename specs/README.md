@@ -86,3 +86,22 @@ or specification version is prohibited.
 - `P07`: outfit assistant
 - `P08`: try-on visualization
 - `P09`: production hardening
+- `P10`: Gmail to wardrobe
+- `P11`: OpenAI receipt intelligence
+- `P12`: receipt purchase unit promotion (highest current delivery priority)
+
+## Delivery priorities
+
+1. Complete the local reviewed-receipt to canonical-wardrobe workflow in P12.
+2. Activate and acceptance-test personal Gmail OAuth and the bounded recent
+   receipt backfill when user credentials and browser access are available.
+3. Activate a personal photo connector and materialize selected owner photos.
+4. Reconcile receipt purchase units with real garment observations while
+   preserving user decisions and unmatched evidence.
+5. Run outfit recommendations and presentation-only try-on against the
+   resulting personal canonical catalog.
+
+Unavailable external credentials, Photos authorization, notarization, genuine
+segmentation models, and clean-machine certification remain explicit deferred
+limitations and do not weaken local privacy, atomicity, backup, deletion, or
+user-authority requirements.

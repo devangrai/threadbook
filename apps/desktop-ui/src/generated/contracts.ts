@@ -68,6 +68,24 @@ export type ReceiptImageAttemptId = string;
 
 export type ReceiptRemoteImageId = string;
 
+export type ReceiptIntelligenceApprovalId = string;
+
+export type ReceiptIntelligenceAttemptId = string;
+
+export type ReceiptIntelligenceClassificationId = string;
+
+export type ReceiptIntelligenceAuditId = string;
+
+export type ReceiptIntelligenceSourceRevisionId = string;
+
+export type ReceiptSourceAuthorityId = string;
+
+export type ReceiptPurchaseUnitId = string;
+
+export type ReceiptPromotionId = string;
+
+export type ReceiptAuthoritySnapshotId = string;
+
 export type PhotoScopeId = string;
 
 export type PhotoImportScanId = string;
@@ -144,13 +162,13 @@ export type ErrorCodeV1 = "invalid_request" | "unsupported_schema_version" | "re
 
 export type UserActionKeyV1 = "correct_request" | "start_new_request" | "refresh_catalog" | "refresh_receipts" | "restart_paging" | "review_inbox" | "review_receipt" | "retry" | "unlock_keychain" | "review_storage" | "restart_application" | "configure_gmail" | "connect_gmail" | "configure_photo_kit" | "begin_photo_kit_setup" | "review_photo_library_access" | "none";
 
-export type SafeFieldV1 = "schema_version" | "request_id" | "credential_id" | "provider" | "display_label" | "secret" | "timestamp" | "path" | "limit" | "cursor" | "snapshot_token" | "expected_catalog_revision" | "expected_receipt_revision" | "item_id" | "evidence_id" | "decision_id" | "attributes" | "collection" | "deletion_target" | "deletion_plan" | "deletion_revisions" | "deletion_retention" | "deletion_health" | "receipt_fragment" | "receipt_citation" | "receipt_evidence" | "receipt_provider_output" | "receipt_review_action" | "receipt_image_candidate" | "receipt_image_attempt" | "gmail_client_id" | "gmail_label_name" | "gmail_limits" | "gmail_status" | "gmail_summary" | "photo_kit_setup_session" | "photo_kit_selection_token" | "photo_kit_album_label" | "photo_kit_album_candidates" | "photo_kit_counts" | "photo_kit_availability" | "photo_kit_status" | "expected_photo_kit_revision" | "expected_local_only_revision" | "local_only_authority" | "recommendation_prompt" | "recommendation_constraints" | "recommendation_exclusions" | "recommendation_retention" | "recommendation_disclosure" | "recommendation_approval" | "recommendation_tool" | "recommendation_snapshot" | "recommendation_proposal" | "recommendation_assessment" | "recommendation_usage";
+export type SafeFieldV1 = "schema_version" | "request_id" | "credential_id" | "provider" | "display_label" | "secret" | "timestamp" | "path" | "limit" | "cursor" | "snapshot_token" | "expected_catalog_revision" | "expected_receipt_revision" | "item_id" | "evidence_id" | "decision_id" | "attributes" | "collection" | "deletion_target" | "deletion_plan" | "deletion_revisions" | "deletion_retention" | "deletion_health" | "receipt_fragment" | "receipt_citation" | "receipt_evidence" | "receipt_provider_output" | "receipt_review_action" | "receipt_image_candidate" | "receipt_image_attempt" | "receipt_purchase_unit" | "receipt_purchase_unit_exclusion" | "receipt_purchase_unit_provenance" | "receipt_purchase_unit_authority" | "receipt_purchase_unit_snapshot" | "receipt_promotion_confirmation" | "receipt_promotion" | "gmail_client_id" | "gmail_label_name" | "gmail_query" | "gmail_limits" | "gmail_status" | "gmail_summary" | "photo_kit_setup_session" | "photo_kit_selection_token" | "photo_kit_album_label" | "photo_kit_album_candidates" | "photo_kit_counts" | "photo_kit_availability" | "photo_kit_status" | "expected_photo_kit_revision" | "expected_local_only_revision" | "local_only_authority" | "recommendation_prompt" | "recommendation_constraints" | "recommendation_exclusions" | "recommendation_retention" | "recommendation_disclosure" | "recommendation_approval" | "recommendation_tool" | "recommendation_snapshot" | "recommendation_proposal" | "recommendation_assessment" | "recommendation_usage";
 
 export type ImportSourceKindV1 = "photo_folder" | "image_file" | "eml_file" | "mbox_file" | "mbox_message" | "mime_part";
 
 export type SourceAvailabilityV1 = "present" | "missing" | "unavailable" | "incomplete" | "quarantined";
 
-export type EvidenceKindV1 = "image" | "message_attachment";
+export type EvidenceKindV1 = "image" | "message_attachment" | "receipt_purchase_unit";
 
 export type EvidenceStateV1 = "unresolved" | "deferred" | "assigned" | "rejected";
 
@@ -160,11 +178,11 @@ export type EvidenceDecisionActionV1 = "assign" | "reject" | "defer";
 
 export type ItemCategoryV1 = "top" | "bottom" | "dress" | "outerwear" | "shoes" | "accessory" | "underwear" | "activewear" | "other";
 
-export type DecisionKindV1 = "save_item" | "decide_evidence" | "merge_items" | "split_item" | "undo";
+export type DecisionKindV1 = "save_item" | "decide_evidence" | "merge_items" | "split_item" | "promote_receipt_purchase_unit" | "undo";
 
-export type DeletionTargetKindV1 = "import_root" | "source" | "item" | "photokit_enrollment" | "photokit_asset";
+export type DeletionTargetKindV1 = "import_root" | "source" | "item" | "purchase_unit" | "receipt_purchase_unit_evidence" | "photokit_enrollment" | "photokit_asset";
 
-export type DeletionDependencyClassV1 = "originals" | "derivatives" | "source_records" | "evidence_records" | "decision_records" | "remote_references" | "retained_shared_blobs";
+export type DeletionDependencyClassV1 = "originals" | "derivatives" | "source_records" | "evidence_records" | "decision_records" | "remote_references" | "retained_shared_blobs" | "retained_shared_records";
 
 export type DeletionConfirmationV1 = "delete_active_local_data";
 
@@ -187,6 +205,28 @@ export type ReceiptImageCandidateEligibilityV1 = "eligible" | "blocked";
 export type ReceiptImageAttemptOutcomeV1 = "succeeded" | "policy_rejected" | "transport_failed" | "response_rejected" | "ambiguous" | "in_progress";
 
 export type ReceiptImageFailureCodeV1 = "deadline_exceeded" | "invalid_url" | "scheme_rejected" | "user_info_rejected" | "ip_literal_rejected" | "port_rejected" | "host_mismatch" | "dns_failed" | "dns_answer_limit" | "address_rejected" | "client_build_failed" | "transport_failed" | "redirect_location_rejected" | "redirect_cross_host" | "redirect_limit" | "http_status_rejected" | "header_limit" | "content_length_rejected" | "body_limit" | "media_type_rejected" | "magic_mismatch" | "structure_rejected" | "dimensions_rejected" | "decode_failed" | "derivative_limit" | "blocking_task_failed";
+
+export type ReceiptIntelligenceClassificationV1 = "apparel_order" | "apparel_lifecycle_update" | "unrelated" | "ambiguous";
+
+export type ReceiptIntelligenceAttemptStateV1 = "not_sent" | "dispatched" | "completed" | "refused" | "failed" | "outcome_unknown";
+
+export type ReceiptIntelligenceReasoningEffortV1 = "low";
+
+export type ReceiptIntelligenceFailureCodeV1 = "approval_expired" | "approval_consumed" | "consent_mismatch" | "bound_exceeded" | "local_only" | "release_evidence_unavailable" | "outbound_authority_unavailable" | "credential_unavailable" | "retention_declaration_stale" | "source_unavailable" | "source_revision_changed" | "provider_authentication" | "provider_rate_limited" | "provider_unavailable" | "provider_protocol" | "provider_output_invalid" | "citation_invalid" | "persistence_failed" | "cancelled";
+
+export type ReceiptIntelligenceUserActionV1 = "none" | "start_new_preview" | "check_open_ai_credential" | "review_retention_settings" | "retry_when_available" | "review_source" | "review_provider_status";
+
+export type ReceiptIntelligenceAvailabilityReasonV1 = "local_only" | "release_evidence_unavailable" | "outbound_authority_unavailable" | "credential_unavailable" | "retention_declaration_unavailable";
+
+export type ReceiptSourceAuthorityKindV1 = "user_reviewed";
+
+export type ReceiptPurchaseUnitStatusFilterV1 = "available" | "promoted";
+
+export type ReceiptPurchaseUnitExclusionReasonV1 = "review_required" | "rejected" | "deferred" | "non_purchase" | "unknown_event_kind" | "unknown_quantity" | "superseded_authority" | "user_deleted" | "authority_changed_resolution_required";
+
+export type ReceiptPromotionConfirmationV1 = "create_one_wardrobe_item";
+
+export type ReceiptPromotionCategoryAuthorityV1 = "user_selected";
 
 export type ReceiptExtractionSchemaV1 = "receipt-extraction-v1";
 
@@ -304,7 +344,11 @@ export type DeleteCredentialV1Request = { schema_version: 1, request_id: Request
 
 export type GetGmailConnectorV1Request = { schema_version: 1, request_id: RequestId, };
 
+export type GetGmailConnectorV2Request = { schema_version: 2, request_id: RequestId, };
+
 export type SaveGmailSettingsV1Request = { schema_version: 1, request_id: RequestId, client_id: string, label_name: string, limits: GmailConnectorLimitsV1, };
+
+export type SaveGmailSettingsV2Request = { schema_version: 2, request_id: RequestId, client_id: string, discovery_scope: GmailDiscoveryScopeV2, limits: GmailConnectorLimitsV1, };
 
 export type ConnectGmailV1Request = { schema_version: 1, request_id: RequestId, };
 
@@ -315,6 +359,10 @@ export type DisconnectGmailV1Request = { schema_version: 1, request_id: RequestI
 export type GmailConnectorLimitsV1 = { page_size: number, max_pages: number, max_unique_messages: number, max_total_raw_bytes: number, };
 
 export type GmailConnectorSettingsV1 = { provider_profile: GmailProviderProfileV1, oauth_client_id: string, label_name: string, limits: GmailConnectorLimitsV1, };
+
+export type GmailConnectorSettingsV2 = { provider_profile: GmailProviderProfileV1, oauth_client_id: string, discovery_scope: GmailDiscoveryScopeV2, limits: GmailConnectorLimitsV1, };
+
+export type GmailDiscoveryScopeV2 = { "kind": "search", query: string, } | { "kind": "label", label_name: string, };
 
 export type GmailSyncSummaryV1 = { pages_scanned: number, unique_messages: number, messages_imported: number, messages_updated: number, messages_unavailable: number, raw_bytes_read: number, };
 
@@ -554,6 +602,74 @@ export type ListReceiptImageCandidatesV1Request = { schema_version: 1, request_i
 
 export type ApproveAndFetchReceiptImageV1Request = { schema_version: 1, request_id: RequestId, candidate_id: ReceiptImageCandidateId, approved_display_host: string, candidate_url_sha256: Sha256Digest, prior_attempt_id: ReceiptImageAttemptId | null, };
 
+export type ReceiptIntelligencePreparationBoundsV1 = { max_fragment_count: number, max_fragment_bytes: number, max_aggregate_text_bytes: number, max_serialized_request_bytes: number, };
+
+export type ReceiptIntelligenceExecutionBoundsV1 = { max_request_bytes: number, max_response_bytes: number, max_output_tokens: number, timeout_millis: number, max_attempts: number, };
+
+export type ReceiptIntelligenceProjectionFragmentV1 = { fragment_ref: string, text: string, };
+
+export type ReceiptIntelligenceProjectionV1 = { revision: string, fragments: Array<ReceiptIntelligenceProjectionFragmentV1>, };
+
+export type ReceiptIntelligenceRetentionDisclosureV1 = { revision: string, declaration: OpenAiRetentionDeclarationV1, local_provider_payload_retained: boolean, store: boolean, store_false_is_not_organization_zdr: boolean, default_abuse_monitoring_max_days: number, safety_review_exceptions_apply: boolean, };
+
+export type ReceiptIntelligenceDisclosureV1 = { provider: string, model: string, purpose: string, projection: ReceiptIntelligenceProjectionV1, aggregate_text_bytes: number, raw_mime_disclosed: boolean, headers_disclosed: boolean, urls_disclosed: boolean, filenames_disclosed: boolean, attachment_metadata_disclosed: boolean, cid_metadata_disclosed: boolean, internal_identifiers_disclosed: boolean, hashes_disclosed: boolean, credentials_disclosed: boolean, image_bytes_disclosed: boolean, retention: ReceiptIntelligenceRetentionDisclosureV1, preparation_bounds: ReceiptIntelligencePreparationBoundsV1, execution_bounds: ReceiptIntelligenceExecutionBoundsV1, };
+
+export type ReceiptIntelligenceConsentEnvelopeV1 = { source_id: SourceId, source_revision_id: ReceiptIntelligenceSourceRevisionId, source_revision_sha256: Sha256Digest, disclosed_fragment_sha256: Array<Sha256Digest>, projection_sha256: Sha256Digest, serialized_request_sha256: Sha256Digest, serialized_request_bytes: number, credential_id: CredentialId, provider: string, model: string, prompt_revision: string, schema_revision: string, projection_revision: string, parameter_revision: string, retention: ReceiptIntelligenceRetentionDisclosureV1, preparation_bounds: ReceiptIntelligencePreparationBoundsV1, execution_bounds: ReceiptIntelligenceExecutionBoundsV1, expires_at: string, };
+
+export type ReceiptIntelligencePreviewV1 = { disclosure: ReceiptIntelligenceDisclosureV1, consent_envelope: ReceiptIntelligenceConsentEnvelopeV1, };
+
+export type ReceiptIntelligenceConsentV1 = { affirmative: boolean, preview: ReceiptIntelligencePreviewV1, };
+
+export type PreviewReceiptIntelligenceV1Request = { schema_version: 1, request_id: RequestId, source_id: SourceId, };
+
+export type RequestReceiptIntelligenceV1Request = { schema_version: 1, request_id: RequestId, consent: ReceiptIntelligenceConsentV1, };
+
+export type ListReceiptIntelligenceV1Request = { schema_version: 1, request_id: RequestId, state: ReceiptIntelligenceAttemptStateV1 | null, classification: ReceiptIntelligenceClassificationV1 | null, cursor: PageCursorV1 | null, limit: number, };
+
+export type ReceiptIntelligenceReservationV1 = { approval_id: ReceiptIntelligenceApprovalId, attempt_id: ReceiptIntelligenceAttemptId, source_id: SourceId, source_revision_id: ReceiptIntelligenceSourceRevisionId, state: ReceiptIntelligenceAttemptStateV1, single_use: boolean, approval_created_at: string, approval_consumed_at: string, expires_at: string, };
+
+export type ReceiptIntelligenceProviderParametersV1 = { revision: string, store: boolean, background: boolean, tools_enabled: boolean, previous_response_id_present: boolean, strict_schema: boolean, reasoning_effort: ReceiptIntelligenceReasoningEffortV1, max_output_tokens: number, timeout_millis: number, max_attempts: number, };
+
+export type ReceiptIntelligenceUsageV1 = { request_bytes: number, response_bytes: number, input_tokens: number, output_tokens: number, total_tokens: number, reasoning_tokens: number, cached_input_tokens: number, attempts: number, };
+
+export type ReceiptIntelligenceAuditV1 = { audit_id: ReceiptIntelligenceAuditId, attempt_id: ReceiptIntelligenceAttemptId, source_id: SourceId, source_revision_id: ReceiptIntelligenceSourceRevisionId, source_revision_sha256: Sha256Digest, projection_sha256: Sha256Digest, serialized_request_sha256: Sha256Digest, response_sha256: Sha256Digest | null, provider: string, model: string, provider_request_id: string | null, response_id: string | null, prompt_revision: string, schema_revision: string, projection_revision: string, retention_provenance: string, parameters: ReceiptIntelligenceProviderParametersV1, execution_bounds: ReceiptIntelligenceExecutionBoundsV1, usage: ReceiptIntelligenceUsageV1, dispatched_at: string, finished_at: string, };
+
+export type ReceiptIntelligenceClassificationEvidenceV1 = { classification_id: ReceiptIntelligenceClassificationId, attempt_id: ReceiptIntelligenceAttemptId, source_id: SourceId, source_revision_id: ReceiptIntelligenceSourceRevisionId, classification: ReceiptIntelligenceClassificationV1, order_evidence_id: ReceiptOrderEvidenceId | null, created_at: string, };
+
+export type ReceiptIntelligenceFailureV1 = { code: ReceiptIntelligenceFailureCodeV1, retryable: boolean, user_action: ReceiptIntelligenceUserActionV1, };
+
+export type ReceiptIntelligenceOutcomeV1 = { "outcome": "reserved", reservation: ReceiptIntelligenceReservationV1, } | { "outcome": "dispatched", attempt_id: ReceiptIntelligenceAttemptId, dispatched_at: string, } | { "outcome": "completed", classification: ReceiptIntelligenceClassificationEvidenceV1, audit: ReceiptIntelligenceAuditV1, } | { "outcome": "refused", attempt_id: ReceiptIntelligenceAttemptId, audit: ReceiptIntelligenceAuditV1, } | { "outcome": "failed", attempt_id: ReceiptIntelligenceAttemptId, failure: ReceiptIntelligenceFailureV1, audit: ReceiptIntelligenceAuditV1 | null, } | { "outcome": "outcome_unknown", attempt_id: ReceiptIntelligenceAttemptId, audit: ReceiptIntelligenceAuditV1 | null, };
+
+export type ReceiptIntelligenceSummaryV1 = { attempt_id: ReceiptIntelligenceAttemptId, approval_id: ReceiptIntelligenceApprovalId, source_id: SourceId, source_revision_id: ReceiptIntelligenceSourceRevisionId, state: ReceiptIntelligenceAttemptStateV1, classification: ReceiptIntelligenceClassificationEvidenceV1 | null, failure: ReceiptIntelligenceFailureV1 | null, audit: ReceiptIntelligenceAuditV1 | null, created_at: string, updated_at: string, };
+
+export type ReceiptSourceAuthorityV1 = { authority_id: ReceiptSourceAuthorityId, source_id: SourceId, kind: ReceiptSourceAuthorityKindV1, order_evidence_id: ReceiptOrderEvidenceId, review_decision_id: ReceiptReviewDecisionId, review_head: ReceiptReviewHeadV1, authority_revision: number, advanced_at: string, };
+
+export type ReceiptIntelligenceAvailabilityV1 = { available: boolean, reason: ReceiptIntelligenceAvailabilityReasonV1 | null, offline_receipt_analysis_available: boolean, existing_wardrobe_access_available: boolean, };
+
+export type ReceiptPurchaseUnitFieldProvenanceV1 = { "kind": "receipt_citations", citations: Array<FragmentCitationV1>, } | { "kind": "user_correction", review_decision_id: ReceiptReviewDecisionId, } | { "kind": "unknown_receipt_field" };
+
+export type ReceiptPurchaseUnitValuesV1 = { merchant: string | null, order_identifier: string | null, purchase_date: string | null, currency: string | null, description: string | null, event_kind: ReceiptEventKindV1, quantity: number, unit_price_minor: number | null, brand: string | null, sku: string | null, size: string | null, color: string | null, };
+
+export type ReceiptPurchaseUnitProvenanceV1 = { merchant: ReceiptPurchaseUnitFieldProvenanceV1, order_identifier: ReceiptPurchaseUnitFieldProvenanceV1, purchase_date: ReceiptPurchaseUnitFieldProvenanceV1, currency: ReceiptPurchaseUnitFieldProvenanceV1, description: ReceiptPurchaseUnitFieldProvenanceV1, event_kind: ReceiptPurchaseUnitFieldProvenanceV1, quantity: ReceiptPurchaseUnitFieldProvenanceV1, unit_price_minor: ReceiptPurchaseUnitFieldProvenanceV1, brand: ReceiptPurchaseUnitFieldProvenanceV1, sku: ReceiptPurchaseUnitFieldProvenanceV1, size: ReceiptPurchaseUnitFieldProvenanceV1, color: ReceiptPurchaseUnitFieldProvenanceV1, };
+
+export type ReceiptPurchaseUnitAuthorityV1 = { authority_id: ReceiptSourceAuthorityId, source_id: SourceId, order_evidence_id: ReceiptOrderEvidenceId, review_decision_id: ReceiptReviewDecisionId, review_action: ReceiptReviewActionV1, authority_revision: number, receipt_revision: number, };
+
+export type ReceiptPurchaseUnitStatusV1 = { "status": "available" } | { "status": "promoted", promotion_id: ReceiptPromotionId, item_id: ItemId, evidence_id: EvidenceId, decision_id: DecisionId, };
+
+export type ReceiptPurchaseUnitV1 = { purchase_unit_id: ReceiptPurchaseUnitId, order_line_id: ReceiptOrderLineId, unit_ordinal: number, authoritative_quantity: number, values: ReceiptPurchaseUnitValuesV1, provenance: ReceiptPurchaseUnitProvenanceV1, authority: ReceiptPurchaseUnitAuthorityV1, purchase_unit_revision: number, unit_snapshot_sha256: Sha256Digest, catalog_revision: number, evidence_generation: number, status: ReceiptPurchaseUnitStatusV1, };
+
+export type ReceiptPurchaseUnitExclusionV1 = { source_id: SourceId, order_evidence_id: ReceiptOrderEvidenceId | null, order_line_id: ReceiptOrderLineId | null, unit_ordinal: number | null, reason: ReceiptPurchaseUnitExclusionReasonV1, };
+
+export type ReceiptPurchaseUnitSnapshotV1 = { receipt_revision: number, evidence_generation: number, catalog_revision: number, };
+
+export type ListReceiptPurchaseUnitsV1Request = { schema_version: 1, request_id: RequestId, source_id: SourceId | null, status: ReceiptPurchaseUnitStatusFilterV1 | null, cursor: PageCursorV1 | null, limit: number, };
+
+export type ReceiptAuthoritySnapshotV1 = { authority_snapshot_id: ReceiptAuthoritySnapshotId, authority: ReceiptPurchaseUnitAuthorityV1, order_line_id: ReceiptOrderLineId, values: ReceiptPurchaseUnitValuesV1, provenance: ReceiptPurchaseUnitProvenanceV1, snapshot_sha256: Sha256Digest, created_at: string, };
+
+export type ReceiptPromotionV1 = { promotion_id: ReceiptPromotionId, purchase_unit_id: ReceiptPurchaseUnitId, order_line_id: ReceiptOrderLineId, unit_ordinal: number, item_id: ItemId, evidence_id: EvidenceId, decision_id: DecisionId, authority_snapshot_id: ReceiptAuthoritySnapshotId, request_id: RequestId, promoted_at: string, };
+
+export type PromoteReceiptPurchaseUnitV1Request = { schema_version: 1, request_id: RequestId, purchase_unit_id: ReceiptPurchaseUnitId, expected_purchase_unit_revision: number, expected_unit_snapshot_sha256: Sha256Digest, expected_authority_id: ReceiptSourceAuthorityId, expected_authority_revision: number, expected_receipt_revision: number, expected_review_decision_id: ReceiptReviewDecisionId, expected_catalog_revision: number, confirmation: ReceiptPromotionConfirmationV1, category_authority: ReceiptPromotionCategoryAuthorityV1, attributes: ItemAttributesV1, };
+
 export type PointV1 = { x: number, y: number, };
 
 export type RectV1 = { x: number, y: number, width: number, height: number, };
@@ -670,7 +786,11 @@ export type DeleteCredentialV1Response = { schema_version: 1, request_id: Reques
 
 export type GetGmailConnectorV1Response = { schema_version: 1, request_id: RequestId, settings: GmailConnectorSettingsV1 | null, status: GmailConnectorStatusV1, user_action: UserActionKeyV1, };
 
+export type GetGmailConnectorV2Response = { schema_version: 2, request_id: RequestId, settings: GmailConnectorSettingsV2 | null, status: GmailConnectorStatusV1, user_action: UserActionKeyV1, };
+
 export type SaveGmailSettingsV1Response = { schema_version: 1, request_id: RequestId, settings: GmailConnectorSettingsV1, status: GmailConnectorStatusV1, user_action: UserActionKeyV1, replay_status: ReplayStatusV1, };
+
+export type SaveGmailSettingsV2Response = { schema_version: 2, request_id: RequestId, settings: GmailConnectorSettingsV2, status: GmailConnectorStatusV1, user_action: UserActionKeyV1, replay_status: ReplayStatusV1, };
 
 export type ConnectGmailV1Response = { schema_version: 1, request_id: RequestId, status: GmailConnectorStatusV1, user_action: UserActionKeyV1, summary: GmailSyncSummaryV1, replay_status: ReplayStatusV1, };
 
@@ -759,6 +879,16 @@ export type ReviewReceiptV1Response = { schema_version: 1, request_id: RequestId
 export type ListReceiptImageCandidatesV1Response = { schema_version: 1, request_id: RequestId, source_id: SourceId, candidates: Array<ReceiptImageCandidateSummaryV1>, omitted_count: number, };
 
 export type ApproveAndFetchReceiptImageV1Response = { schema_version: 1, request_id: RequestId, candidate_id: ReceiptImageCandidateId, attempt_id: ReceiptImageAttemptId, outcome: ReceiptImageAttemptOutcomeV1, failure_code: ReceiptImageFailureCodeV1 | null, artifact: ReceiptRemoteImageV1 | null, replay_status: ReplayStatusV1, };
+
+export type PreviewReceiptIntelligenceV1Response = { schema_version: 1, request_id: RequestId, preview: ReceiptIntelligencePreviewV1, };
+
+export type RequestReceiptIntelligenceV1Response = { schema_version: 1, request_id: RequestId, outcome: ReceiptIntelligenceOutcomeV1, replay_status: ReplayStatusV1, };
+
+export type ListReceiptIntelligenceV1Response = { schema_version: 1, request_id: RequestId, availability: ReceiptIntelligenceAvailabilityV1, attempts: Array<ReceiptIntelligenceSummaryV1>, total_count: number, receipt_intelligence_revision: number, next_cursor: PageCursorV1 | null, };
+
+export type ListReceiptPurchaseUnitsV1Response = { schema_version: 1, request_id: RequestId, units: Array<ReceiptPurchaseUnitV1>, exclusions: Array<ReceiptPurchaseUnitExclusionV1>, total_count: number, total_exclusion_count: number, snapshot: ReceiptPurchaseUnitSnapshotV1, next_cursor: PageCursorV1 | null, };
+
+export type PromoteReceiptPurchaseUnitV1Response = { schema_version: 1, request_id: RequestId, unit: ReceiptPurchaseUnitV1, item: CatalogItemV1, authority_snapshot: ReceiptAuthoritySnapshotV1, promotion: ReceiptPromotionV1, decision: DecisionSnapshotV1, new_catalog_revision: number, new_evidence_generation: number, replay_status: ReplayStatusV1, };
 
 export type ListImportedPhotoRootsV1Response = { schema_version: 1, request_id: RequestId, roots: Array<ImportedPhotoRootV1>, total_count: number, evidence_generation: number, next_cursor: PageCursorV1 | null, };
 

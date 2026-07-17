@@ -10,6 +10,7 @@ dist/
 coverage/
 apps/desktop-ui/playwright-report/
 apps/desktop-ui/test-results/
+/test-results/
 .pytest_cache/
 __pycache__/
 *.pyc
